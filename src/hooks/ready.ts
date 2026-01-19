@@ -13,7 +13,7 @@
  * - Start module features
  */
 
-import { MODULE_ID, TAB_ID_MAIN } from '../constants';
+import { MODULE_ID, TAB_ID_MAIN, SETTINGS } from '../constants';
 import { FoundryAdapter } from '../foundry/FoundryAdapter';
 import { info, warn, error, logSection, notifyWarning } from '../utils/logging';
 
@@ -56,9 +56,15 @@ export async function readyModule(): Promise<void> {
 // ============================================================================
 
 function isModuleEnabled(): boolean {
-  // Check if Turn Prep tab should be enabled (configurable setting)
-  const enableTab = FoundryAdapter.getSetting('enableTurnPrepTab');
-  return enableTab !== false; // Default true if not set
+  try {
+    // Check if Turn Prep tab should be enabled (configurable setting)
+    const enableTab = FoundryAdapter.getSetting(SETTINGS.ENABLE_TAB.key);
+    return enableTab !== false; // Default true if not set
+  } catch (err) {
+    // If setting doesn't exist yet, default to enabled
+    warn('Settings not yet fully initialized, defaulting to enabled');
+    return true;
+  }
 }
 
 // ============================================================================

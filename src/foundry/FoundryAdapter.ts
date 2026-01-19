@@ -511,7 +511,8 @@ export class FoundryAdapter {
    * @param options - Setting options
    */
   static registerSetting(key: string, options: any): void {
-    if (!this.isReady()) return;
+    // Settings must be registered during init hook, before game is fully ready
+    // So we don't check isReady() here
     game.settings.register(MODULE_ID, key, options);
   }
 
