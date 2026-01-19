@@ -129,8 +129,11 @@ api.svelte.framework = {
 
 ### Target Versions
 
-- **Foundry Core:** V13 (updated from initial V12)
-- **D&D 5e System:** v5+ (user specified - no backwards compat needed)
+- **Foundry Core:** V13 (required by D&D 5e v5.2+)
+- **D&D 5e System:** v5.1.x or v5.2.x (v5.2.0+ requires Foundry V13+)
+  - Current stable: v5.2.4 (released Dec 2025)
+  - Previous stable: v5.1.10 (works with Foundry V12, but we're using V13)
+  - **Do not support:** v5.0.x or earlier
 
 ### Sheet Visibility & Permissions
 
@@ -164,16 +167,59 @@ api.svelte.framework = {
 
 **Getting items by activation cost:**
 ```javascript
-// Likely approach
+// Confirmed approach (stable across 5.1 and 5.2)
 actor.items.filter(item => item.system?.activation?.type === 'reaction')
+
+// Get all action economy items
+const actions = actor.items.filter(item => item.system?.activation?.type === 'action');
+const bonusActions = actor.items.filter(item => item.system?.activation?.type === 'bonus');
+const reactions = actor.items.filter(item => item.system?.activation?.type === 'reaction');
+
+// Items without activation cost (no activation.type)
+const noActivation = actor.items.filter(item => !item.system?.activation?.type);
 ```
+
+**Stable Item Properties:**
+- `item.id` - Unique identifier (stable for snapshots)
+- `item.name` - Display name (safe to snapshot)
+- `item.type` - Item type: 'spell', 'feature', 'equipment', 'loot', 'weapon', 'tool', 'consumable', etc.
+- `item.system.activation.type` - Activation cost (safe to rely on)
+- `item.img` - Icon/image path (safe to snapshot if needed)
+
+**Safe to use without data migration:**
+- All basic item properties above
+- No breaking changes expected for activation cost in v5.x
+- Item data structure has stabilized in v5.1+
 
 ### Breaking Changes Between 5e Versions
 
-**Need to research:** Specific breaking changes in v5+ D&D 5e system
-- Assumption: Item structure is stable in `system.activation.type`
-- Data migration may be needed if major changes occur
-- Use `Hooks.on('ready')` to validate/migrate data on load
+**CRITICAL: D&D 5e v5.2.0 Requires Foundry V13+**
+
+The D&D 5e v5.2.0 release **ONLY supports Foundry Virtual Tabletop v13 and greater**. Older versions of the system do not work with Foundry V12.
+
+**For v5.1.x -> v5.2.x Migration:**
+- Vehicle data structure changed significantly (Dimensions, Creature Capacity, Crew & Passengers)
+- Not automatically migrated - old data preserved but invisible
+- Activities system enhanced with new visibility constraints
+- No impact on activation costs (still use `system.activation.type`)
+
+**Item Activation Structure (Stable):**
+- Still accessed via `item.system.activation.type`
+- Values remain consistent: `action`, `bonus`, `reaction`, etc.
+- No changes expected in v5.x series for activation costs
+- Safe to rely on: `actor.items.filter(item => item.system?.activation?.type === 'reaction')`
+
+**Key Breaking Changes in v5.2.0:**
+1. **Calendar Integration** - New calendar API integration (not relevant for Turn Prep)
+2. **Activity & Effect Visibility** - Activities can now be hidden by level/criteria (may affect future feature selection)
+3. **ApplicationV2 Conversion** - Vehicle sheets converted (doesn't affect character/item sheets we care about)
+4. **Vehicle Data Restructuring** - Major changes to vehicle system (doesn't affect character items/features)
+
+**Compatibility Recommendation:**
+- Target D&D 5e v5.1.x or v5.2.x (both with Foundry V13+)
+- Do NOT attempt to support earlier v5.0.x versions
+- Item activation data structure is stable across 5.x
+- No data migration needed for features/items/spells we care about
 
 ---
 
@@ -382,19 +428,183 @@ interface SnapshotFeature {
 
 ---
 
-## 9. Remaining Research Needed
+## 9. Foundry Virtual Tabletop v13 - Core Framework (Stable Release 13.351, Nov 12, 2025)
+
+### ApplicationV2 Framework (Complete UI Overhaul)
+
+**Key Changes:**
+- All core applications migrated to ApplicationV2 (Foundry's new UI framework)
+- Replaces deprecated AppV1 sheets
+- Breaking change: Default actor/item sheet registrations removed - systems must register their own sheets
+- Direct impact: Turn Prep tabs will work with AppV2 sheets
+
+**Module/Sheet Integration:**
+```javascript
+// AppV2 sheets require explicit configuration
+// Tidy 5E already provides AppV2 compatibility
+// No additional changes needed for Turn Prep tab registration
+```
+
+### Actor Flags System (Critical for Data Storage)
+
+**Flag Storage Confirmed Stable:**
+- Actor.flags is the reliable API for Turn Prep data persistence
+- Works directly with AppV2 actor sheets
+- No breaking changes in v13 for flag system
+- Full TypeScript support for flags via `actor.flags['turn-prep']`
+
+**Data Ownership & Visibility:**
+- `actor.isOwner` boolean available for DM/player visibility checks
+- Turn Prep data stored on actor scope - respects ownership permissions
+- DMs (with owner: 'gamemaster') can access actor.flags for all actors
+- Implementation: Check `actor.isOwner` before rendering DM-only features
+
+### Module Hooks System (Lifecycle)
+
+**Foundry Core Hooks Stable:**
+- `init` - Before ui initialization (register module features)
+- `ready` - After ui fully loaded (start main module)
+- `updateActor` - When actor data changes (sync Turn Prep data)
+- `createCombatant` - When combat starts (initialize turn state)
+- `combatStart` - When round starts (query reactions, plan turns)
+
+**Hook Implementation Pattern:**
+```javascript
+Hooks.once('init', () => {
+  // Register settings, define constants
+});
+
+Hooks.once('ready', () => {
+  // Access game.actors, initialize data structures
+});
+
+Hooks.on('combatStart', () => {
+  // Initialize turn prep when combat begins
+});
+```
+
+### DocumentV2 API (Actor/Item Structure)
+
+**Actor/Item Data Access:**
+- `actor.items` collection for querying features
+- `item.system` for game system data (D&D 5e activation costs)
+- `actor.system` for actor-specific attributes
+- Fully typed with TypeScript definitions available
+
+**Ownership Model:**
+- `actor.ownership` object containing user IDs and permission levels
+- `document.can(action)` method for permission checks
+  - `actor.can('update')` - Can modify this actor
+  - `actor.can('view')` - Can see this actor (all users can see public actors)
+- `actor.isOwner` is shorthand for ownership check
+
+**Module Data Pattern (Recommended):**
+- Store Turn Prep data in `actor.flags.['turn-prep']` scope
+- Flags auto-persist to database without manual save
+- Update via: `actor.update({'flags.turn-prep.data': value})`
+- Query via: `actor.flags['turn-prep']` (direct property access)
+
+### CSS Layers & Theming (UI Improvements)
+
+**V13 UI Theme Changes:**
+- Foundry now uses CSS Layers for core UI elements (easier customization)
+- Light/Dark mode auto-detection from OS settings
+- World-level theme override available in game settings
+- Custom modules can target Foundry's CSS layers without high specificity
+
+**Turn Prep Integration:**
+- Tidy 5E already handles color theming
+- No need to manually implement theme switching
+- Use Tidy's CSS variables for consistency
+- Custom colors via Tidy's customization panel
+
+### Performance & Browser Support
+
+**Framework Updates:**
+- Complete removal of jQuery dependency (Tidy already modern)
+- Node.js 20+ requirement for server-side Foundry
+- Full ES2022 support in client-side code
+- Improved performance across the board
+
+**Module Compatibility:**
+- Modules must be explicitly compatible with AppV2
+- Tidy 5E v12+ is fully AppV2 compatible
+- Turn Prep tabs work without modifications across all AppV2 sheets
+
+### Document Validation & Type Safety
+
+**TypeScript Integration:**
+- Full type definitions available for Foundry core classes
+- `ActorV2`, `ItemV2`, `SceneV2` types available
+- `actor.flags` properly typed with declaration merging
+- Safe navigation with strict null checks enabled
+
+### Breaking Changes from V12 to V13
+
+**Critical for Module Development:**
+1. Default sheet registrations removed - sheets must register explicitly
+2. AppV1 sheets deprecated (only AppV2 available for new code)
+3. jQuery removed from core (use native DOM APIs)
+4. Some hooks renamed/reorganized
+
+**No Breaking Changes for Turn Prep:**
+- Actor flags API unchanged
+- Combat system unchanged
+- Item query methods unchanged
+- Hook system backward compatible
+
+### Module Registration Lifecycle
+
+**Correct V13 Pattern:**
+```javascript
+// manifest.json
+{
+  "esmodules": ["modules/turn-prep.mjs"],
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": 13,
+    "verified": 13.351,
+    "maximum": "14"
+  }
+}
+
+// main entry point
+Hooks.once('init', () => {
+  // Register module settings with game.settings.register()
+  // Create module constants and enums
+});
+
+Hooks.once('ready', () => {
+  // Initialize after Foundry + systems loaded
+  // Set up module features
+});
+```
+
+### Testing & Debugging
+
+**Module Development Tools:**
+- Compatibility Preview tool in setup menu shows v13 compatibility status
+- Console logging unchanged (`console.log()` works as expected)
+- Browser DevTools full support for Foundry's TypeScript code
+- Module reload works via `game.reload()` in browser console
+
+---
+
+## 10. Remaining Research Needed
 
 These will be addressed as implementation progresses:
 
 - [ ] Exact CSS variable names from Tidy for color theming
-- [ ] Specific D&D 5e v5 breaking changes documentation
+- [x] Specific D&D 5e v5 breaking changes documentation (v5.2.0 confirmed, v5.1.x compatible)
+- [x] Foundry Core V13 framework architecture (ApplicationV2, flags, hooks)
 - [ ] Local Foundry dev instance setup (detailed guide)
 - [ ] Tidy's ConfigApi for customization panel integration
 - [ ] MidiQOL detailed API (if needed for Phase 3+)
+- [ ] Specific item type filtering (which types have activation costs)
 
 ---
 
-## 10. File References
+## 11. File References
 
 **Key Tidy 5E Source Files to Study:**
 - `src/api/Tidy5eSheetsApi.ts` - Main API class
@@ -403,7 +613,27 @@ These will be addressed as implementation progresses:
 
 **Repository:** https://github.com/kgar/foundry-vtt-tidy-5e-sheets
 
+**Foundry Core Resources:**
+- Documentation: https://foundryvtt.com/docs/
+- V13 Release Notes: https://foundryvtt.com/releases/13.341
+- GitHub: https://github.com/foundryvtt/foundryvtt
+
 ---
 
 **Last Updated:** January 19, 2026
 **Status:** Ready for Phase 1 implementation
+**Research Complete:** Tidy 5E v12+, D&D 5e v5+, Foundry Core V13
+---
+
+## D&D 5e System Additional Notes
+
+**Release Timeline (from public releases):**
+- v5.2.4: Dec 19, 2025 (latest stable)
+- v5.2.0: Nov 27, 2025 (breaking changes - requires Foundry V13)
+- v5.1.10: Oct 15, 2025 (last v5.1 release)
+
+**System API Stability:**
+- Item structure stable since v5.1.x
+- Activation costs use consistent string-based IDs
+- No data migrations needed for Turn Prep features
+- Safe to query items via `actor.items` collection

@@ -2,14 +2,426 @@
  * Data Utilities
  * 
  * Helper functions for data manipulation.
- * Useful for array operations, object merging, filtering, etc.
- * 
- * TODO: Implement helpers for:
- * - Deep cloning objects
- * - Merging objects
- * - Array deduplication
- * - Safe property access (getProperty, setProperty)
- * - Type checks (isNil, isEmpty, etc.)
+ * Includes cloning, merging, filtering, and safe property access.
  */
 
-// TODO: Add data utilities
+import { v4 as uuidv4 } from 'uuid';
+import type {
+  DMQuestion,
+  TurnPlan,
+  Reaction,
+  TurnSnapshot,
+  SelectedFeature,
+  SnapshotFeature,
+  TurnPrepData,
+} from '../types';
+
+// ============================================================================
+// ID Generation
+// ============================================================================
+
+/**
+ * Generate a unique ID
+ * Uses UUID v4 for strong uniqueness guarantees
+ * @returns A new unique ID string
+ */
+export function generateId(): string {
+  return uuidv4();
+}
+
+/**
+ * Generate a short unique ID (first 8 chars of UUID)
+ * Useful for display purposes where length matters
+ * @returns A short unique ID string
+ */
+export function generateShortId(): string {
+  return generateId().substring(0, 8);
+}
+
+// ============================================================================
+// Object Cloning & Merging
+// ============================================================================
+
+/**
+ * Deep clone an object
+ * Creates a completely independent copy
+ * @param obj - The object to clone
+ * @returns A deep clone of the object
+ */
+export function deepClone<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (obj instanceof Date) {
+    return new Date(obj.getTime()) as any;
+  }
+
+  if (obj instanceof Array) {
+    return obj.map((item) => deepClone(item)) as any;
+  }
+
+  if (obj instanceof Object) {
+    const clonedObj: any = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        clonedObj[key] = deepClone((obj as any)[key]);
+      }
+    }
+    return clonedObj;
+  }
+
+  return obj;
+}
+
+/**
+ * Shallow merge objects
+ * Second object properties override first
+ * @param target - The target object
+ * @param source - The source object to merge in
+ * @returns A new merged object
+ */
+export function mergeObjects<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+  return { ...target, ...source } as T;
+}
+
+/**
+ * Deep merge objects
+ * Recursively merges nested objects
+ * @param target - The target object
+ * @param source - The source object to merge in
+ * @returns A new deeply merged object
+ */
+export function mergeObjectsDeep<T extends Record<string, any>>(
+  target: T,
+  source: Partial<T>
+): T {
+  const result = deepClone(target);
+
+  for (const key in source) {
+    if (source.hasOwnProperty(key)) {
+      const sourceValue = source[key];
+      const targetValue = result[key];
+
+      if (
+        sourceValue !== null &&
+        typeof sourceValue === 'object' &&
+        !Array.isArray(sourceValue) &&
+        targetValue !== null &&
+        typeof targetValue === 'object' &&
+        !Array.isArray(targetValue)
+      ) {
+        result[key] = mergeObjectsDeep(targetValue, sourceValue);
+      } else {
+        result[key] = sourceValue as any;
+      }
+    }
+  }
+
+  return result;
+}
+
+// ============================================================================
+// Safe Property Access
+// ============================================================================
+
+/**
+ * Safely get a nested property using dot notation
+ * Returns undefined if path doesn't exist (no errors)
+ * @param obj - The object to query
+ * @param path - The property path (e.g., 'data.flags.turn-prep')
+ * @param defaultValue - Optional default if not found
+ * @returns The property value or undefined
+ */
+export function getProperty(
+  obj: any,
+  path: string,
+  defaultValue: any = undefined
+): any {
+  try {
+    const keys = path.split('.');
+    let result = obj;
+
+    for (const key of keys) {
+      if (result === null || result === undefined) {
+        return defaultValue;
+      }
+      result = result[key];
+    }
+
+    return result !== undefined ? result : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+/**
+ * Safely set a nested property using dot notation
+ * Creates intermediate objects as needed
+ * @param obj - The object to modify
+ * @param path - The property path (e.g., 'data.flags.turn-prep')
+ * @param value - The value to set
+ */
+export function setProperty(obj: any, path: string, value: any): void {
+  const keys = path.split('.');
+  const lastKey = keys.pop();
+
+  if (!lastKey) return;
+
+  let current = obj;
+  for (const key of keys) {
+    if (current[key] === undefined || current[key] === null) {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+
+  current[lastKey] = value;
+}
+
+// ============================================================================
+// Array Operations
+// ============================================================================
+
+/**
+ * Deduplicate an array based on a property or function
+ * @param arr - The array to deduplicate
+ * @param keyFn - Function to extract the key, or string property name
+ * @returns A deduplicated array
+ */
+export function deduplicateArray<T>(
+  arr: T[],
+  keyFn: ((item: T) => any) | string
+): T[] {
+  const seen = new Set();
+  return arr.filter((item) => {
+    const key = typeof keyFn === 'string' ? (item as any)[keyFn] : keyFn(item);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Find an item in an array and return its index
+ * @param arr - The array to search
+ * @param predicate - Function to test each item
+ * @returns The index, or -1 if not found
+ */
+export function findIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
+  for (let i = 0; i < arr.length; i++) {
+    if (predicate(arr[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Replace an item in an array
+ * @param arr - The array
+ * @param index - The index to replace
+ * @param item - The new item
+ * @returns A new array with the replacement
+ */
+export function replaceArrayItem<T>(arr: T[], index: number, item: T): T[] {
+  const newArr = [...arr];
+  if (index >= 0 && index < newArr.length) {
+    newArr[index] = item;
+  }
+  return newArr;
+}
+
+/**
+ * Remove an item from an array by index
+ * @param arr - The array
+ * @param index - The index to remove
+ * @returns A new array with the item removed
+ */
+export function removeArrayItem<T>(arr: T[], index: number): T[] {
+  return arr.filter((_, i) => i !== index);
+}
+
+/**
+ * Move an item in an array to a new position
+ * @param arr - The array
+ * @param fromIndex - Current index
+ * @param toIndex - New index
+ * @returns A new array with the item moved
+ */
+export function moveArrayItem<T>(arr: T[], fromIndex: number, toIndex: number): T[] {
+  if (fromIndex === toIndex) return arr;
+  const newArr = [...arr];
+  const [item] = newArr.splice(fromIndex, 1);
+  newArr.splice(toIndex, 0, item);
+  return newArr;
+}
+
+// ============================================================================
+// Null/Undefined Checks
+// ============================================================================
+
+/**
+ * Check if a value is null or undefined
+ * @param value - The value to check
+ * @returns True if null or undefined
+ */
+export function isNil(value: any): boolean {
+  return value === null || value === undefined;
+}
+
+/**
+ * Check if a value is empty (null, undefined, '', [], {})
+ * @param value - The value to check
+ * @returns True if empty
+ */
+export function isEmpty(value: any): boolean {
+  if (isNil(value)) return true;
+  if (typeof value === 'string') return value.trim().length === 0;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') return Object.keys(value).length === 0;
+  return false;
+}
+
+/**
+ * Check if a value is defined and not empty
+ * @param value - The value to check
+ * @returns True if defined and not empty
+ */
+export function hasValue(value: any): boolean {
+  return !isEmpty(value);
+}
+
+// ============================================================================
+// Data Structure Creation
+// ============================================================================
+
+/**
+ * Create a new DM Question
+ * @param text - The question text
+ * @param tags - Optional tags
+ * @returns A new DMQuestion object
+ */
+export function createDMQuestion(text: string, tags: string[] = []): DMQuestion {
+  return {
+    id: generateId(),
+    text,
+    tags,
+    createdTime: Date.now(),
+  };
+}
+
+/**
+ * Create a new Turn Plan
+ * @param name - The plan name
+ * @param trigger - The trigger description
+ * @returns A new TurnPlan object
+ */
+export function createTurnPlan(name: string, trigger: string): TurnPlan {
+  return {
+    id: generateId(),
+    name,
+    trigger,
+    action: null,
+    bonusAction: null,
+    movement: '',
+    roleplay: '',
+    additionalFeatures: [],
+    categories: [],
+  };
+}
+
+/**
+ * Create a new Reaction
+ * @param trigger - The trigger description
+ * @param feature - The reaction feature
+ * @returns A new Reaction object
+ */
+export function createReaction(trigger: string, feature: SelectedFeature): Reaction {
+  return {
+    id: generateId(),
+    trigger,
+    feature,
+    additionalFeatures: [],
+  };
+}
+
+/**
+ * Create a Turn Snapshot from a Turn Plan
+ * Captures feature names at the time of snapshot
+ * @param plan - The turn plan to snapshot
+ * @returns A new TurnSnapshot object
+ */
+export function createTurnSnapshot(plan: TurnPlan): TurnSnapshot {
+  return {
+    id: generateId(),
+    createdTime: Date.now(),
+    planName: plan.name,
+    action: plan.action ? snapshotFeature(plan.action) : null,
+    bonusAction: plan.bonusAction ? snapshotFeature(plan.bonusAction) : null,
+    movement: plan.movement,
+    trigger: plan.trigger,
+    additionalFeatures: plan.additionalFeatures.map(snapshotFeature),
+    categories: [...plan.categories],
+  };
+}
+
+/**
+ * Convert a SelectedFeature to a SnapshotFeature
+ * @param feature - The feature to snapshot
+ * @returns A snapshot of the feature
+ */
+export function snapshotFeature(feature: SelectedFeature): SnapshotFeature {
+  return {
+    itemId: feature.itemId,
+    itemName: feature.itemName,
+    itemType: feature.itemType,
+    actionType: feature.actionType,
+    isMissing: false,
+  };
+}
+
+/**
+ * Create an empty TurnPrepData structure
+ * @returns A new empty TurnPrepData object
+ */
+export function createEmptyTurnPrepData(): TurnPrepData {
+  return {
+    version: 1,
+    dmQuestions: [],
+    turnPlans: [],
+    activePlanIndex: -1,
+    reactions: [],
+    history: [],
+    favorites: [],
+  };
+}
+
+// ============================================================================
+// Array Limiting
+// ============================================================================
+
+/**
+ * Limit an array to a maximum length
+ * Removes oldest items from the start
+ * @param arr - The array to limit
+ * @param maxLength - Maximum length
+ * @returns A limited array
+ */
+export function limitArray<T>(arr: T[], maxLength: number): T[] {
+  if (arr.length <= maxLength) return arr;
+  return arr.slice(arr.length - maxLength);
+}
+
+/**
+ * Limit history snapshots to a maximum count
+ * Used for enforcing history limit setting
+ * @param history - The history array
+ * @param limit - Maximum number of entries
+ * @returns Limited history
+ */
+export function limitHistory(history: TurnSnapshot[], limit: number): TurnSnapshot[] {
+  return limitArray(history, Math.max(5, Math.min(50, limit)));
+}
