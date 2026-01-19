@@ -1,0 +1,73 @@
+{
+  "TurnPrep": {
+    "TabName": "Turn Prep",
+    "SidebarTabName": "Turns",
+    "DmQuestions": {
+      "Label": "DM Questions",
+      "Hint": "Note any clarifying questions to ask the DM",
+      "AddButton": "Add Question",
+      "SendToChat": "Send to Chat",
+      "WhisperToDm": "Whisper to DM",
+      "DeleteButton": "Delete",
+      "Placeholder": "Type your question here..."
+    },
+    "TurnPlans": {
+      "Label": "Turn Plans",
+      "Hint": "Plan out your actions for your turn",
+      "AddPlan": "Add Turn Plan",
+      "RemovePlan": "Remove Plan",
+      "Action": "Action",
+      "BonusAction": "Bonus Action",
+      "Movement": "Movement",
+      "Trigger": "Trigger / Reason",
+      "Roleplay": "Roleplay / Narration",
+      "AdditionalFeatures": "Additional Features",
+      "SaveAsFavorite": "Save as Favorite",
+      "ClearAll": "Clear All",
+      "ClearPlan": "Clear",
+      "Roll": "Roll"
+    },
+    "Reactions": {
+      "Label": "Reactions",
+      "Hint": "Plan your reaction for potential situations",
+      "AddReaction": "Add Reaction",
+      "RemoveReaction": "Remove Reaction",
+      "Trigger": "Trigger",
+      "Action": "Action",
+      "ClearReaction": "Clear",
+      "SendToHistory": "Send to History"
+    },
+    "History": {
+      "Label": "History",
+      "Hint": "Previously used turn plans",
+      "Load": "Load",
+      "Delete": "Delete",
+      "Empty": "No history yet. Complete a turn to add to history."
+    },
+    "Favorites": {
+      "Label": "Favorites",
+      "Hint": "Frequently used turn plans",
+      "Load": "Load",
+      "Delete": "Delete",
+      "Empty": "No favorites yet. Save a turn plan as favorite."
+    },
+    "Settings": {
+      "HistoryLimit": {
+        "Name": "History Limit",
+        "Hint": "Maximum number of turn history entries to retain (default: 10)"
+      },
+      "DebugMode": {
+        "Name": "Debug Mode",
+        "Hint": "Enable debug logging in browser console"
+      }
+    },
+    "Messages": {
+      "FeatureAdded": "Added {featureName} to turn plan",
+      "FeatureRemoved": "Removed {featureName} from turn plan",
+      "TurnSaved": "Turn plan saved",
+      "TurnLoaded": "Turn plan loaded from {source}",
+      "TurnCleared": "Turn plan cleared",
+      "NotImplemented": "This feature is not yet implemented"
+    }
+  }
+}

@@ -1,11 +1,22 @@
 # Resources
+An existing module for compatibility and for style and functionality reference:
 https://github.com/kgar/foundry-vtt-tidy-5e-sheets
 
+A guide to developing modules for foundry vtt:
 https://foundryvtt.com/article/module-development/
+
+Foundry Vtt API Docs
+https://foundryvtt.com/api/
+
+D&D 5E System for FOundry VTT Repo:
+https://github.com/foundryvtt/dnd5e
 
 # Overview
 I use Foundry VTT to run my D&D campaign. I'd like your help developing an add-on that is compatible with the "Tidy 5e Sheets" module (github link above) that would add an additional tab to the character sheets where players could prep their next turn so that they are ready to go when their turn comes around. Integrates naturally with Foundry's right click context menu. 
 
+# Versions
+Foundry Version 13+
+D&D System for Foundry v. 5.2.X+
 
 # UI
 A collection of panels within a character sheet tab.
@@ -36,7 +47,9 @@ Panels outlined below
 
 - The ability to click a roll button next to actions/bonus actions/features to trigger Foundry's native roll dialog (showing normal/advantage/disadvantage options), hooking into the same roll functionality as the native character sheet tabs.
 
-- A clear all button at the top of this section and individual clear buttons
+- A clear all button at the top of this section and individual clear buttons.
+
+- Favorite turns can be moved to the History & Favorites sidebar tab (Tidy 5E) or side panel (Default Sheet)
 
 
 ## Reactions
@@ -49,14 +62,20 @@ Panels outlined below
 
 - Clear and sent to history buttons.
 
-## History & Favorites
+## History & Favorites (Tidy 5E Only)
 
-- A narrow side panel within the sheet tab with Basic text summaries of turn plans.
+Integrated as a dedicated sidebar tab in Tidy 5E's Character Sheet sidebar (alongside Favorites, Skills, and Traits tabs).
 
-- toggleable between two views, but the same layout for both. 
-  - **History**: A running log of past turns. When a turn is done it gets sent here
-  - **Favorites:** A saved collection of commonly used turns. 
-- A button on each to load it into the current turn plan to use again
+- Basic text summaries of turn plans displayed in a list
+- Togglable between two views with the same layout:
+  - **Favorites**: A saved collection of commonly used turns (reorderable)
+  - **History**: A running log of past turns (limited to 10, configurable via module settings)
+- A "Load" button on each entry to load it into the current turn plans section
+- When a turn is completed, it automatically gets added to the History
+
+### History & Favorites (Default D&D 5e Sheet)
+
+For the default sheet, History and Favorites will appear as a collapsible side panel within the Turn Prep tab itself, providing similar functionality but integrated directly into the tab rather than in a sidebar.
 
 
 # Context Menu Options
@@ -69,9 +88,27 @@ Panels outlined below
 - The Tidy 5e Sheets module has a sheet tab that can be customized to show only the most accessed features and actions. Right clicking on items on other tabs gives "add to sheet tab" or "remove from sheet tab" options. I'd like adding things to the turn tab to work in a similar way.
 
 # Sheet Integration
-- This module should be compatible with the Tidy 5e Sheets module as its own distinct tab on the character sheet.
-- It should not modify any existing Tidy 5e tabs, only add a new "Turn Prep" tab and context menu options across the entire sheet.
-- The functionality should be identical when using the default Foundry D&D 5e character sheet.
+
+## Tidy 5E Sheets Integration
+- **Main Tab**: A new "Turn Prep" tab on the character sheet containing:
+  - DM Questions section
+  - Turn Plans section
+  - Reaction Plans section
+- **Sidebar Tab**: A new "Turns" sidebar tab integrated into Tidy 5E's character sheet sidebar(with hourglass icon, or clock icon if hourglass unavailable) containing:
+  - Favorite Turns (reorderable)
+  - Turn History (most recent 10 turns, configurable limit)
+- Does not modify any existing Tidy 5E tabs or functionality
+- Integrates via the Tidy 5E Sheets API using `registerCharacterSidebarTab()`
+
+## Default D&D 5e Sheet Integration
+- **Main Tab**: A new "Turn Prep" tab on the character sheet containing:
+  - DM Questions section
+  - Turn Plans section
+  - Reaction Plans section
+  - Collapsible side panel containing History & Favorites (matching Tidy 5E functionality but integrated within the tab)
+
+## General
+- Context menu options appear on all items, spells, and features across the entire sheet (regardless of sheet type)
 - This module will inherit the standard character sheet permissions—DM access is determined by whatever permission model the character sheet uses. 
 
 # Conclusion
@@ -91,3 +128,6 @@ The links provide info on module development and on the tidy 5e sheets module sp
 - Feature/spell/item selection lists should pull directly from the character's actual Foundry data (items, spells, features, etc.).
 - Lists should be filtered based on context (e.g., only showing abilities with "Action" or "Bonus Action" type for those specific fields).
 - Selection should be via clickable list UI rather than text autocomplete.
+
+## Module Settings
+- **History Limit** (default: 10): Configurable maximum number of turn history entries to retain per character

@@ -1,0 +1,19 @@
+{
+  "name": "turn-prep",
+  "version": "1.0.0",
+  "description": "Turn Prep - D&D 5e Turn Preparation Module for Foundry VTT",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "link-create": "node symlink-module-build-dir.js",
+    "link-remove": "node symlink-module-build-dir.js --clean"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.0.0",
+    "svelte": "^5.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  },
+  "dependencies": {}
+}

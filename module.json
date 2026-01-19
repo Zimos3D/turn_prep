@@ -1,0 +1,45 @@
+{
+  "id": "turn-prep",
+  "title": "Turn Prep - D&D 5e Turn Preparation Module",
+  "description": "Help players prepare their next turn in advance with action planning, bonus action selection, and turn management. Integrates with Tidy 5e Sheets with fallback support for default D&D 5e sheets.",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "12",
+    "verified": "12"
+  },
+  "authors": [
+    {
+      "name": "Your Name"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system"
+      }
+    ],
+    "optional": [
+      {
+        "id": "tidy5e-sheet",
+        "type": "module"
+      }
+    ]
+  },
+  "esmodules": [
+    "src/main.ts"
+  ],
+  "styles": [
+    "styles/turn-prep.less"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "public/lang/en.json"
+    }
+  ],
+  "url": "https://github.com/yourusername/turn-prep",
+  "manifest": "https://github.com/yourusername/turn-prep/releases/latest/download/module.json",
+  "download": "https://github.com/yourusername/turn-prep/releases/download/v1.0.0/turn-prep.zip"
+}
