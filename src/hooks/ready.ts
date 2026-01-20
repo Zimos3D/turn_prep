@@ -17,6 +17,7 @@ import { MODULE_ID, TAB_ID_MAIN, SETTINGS } from '../constants';
 import { FoundryAdapter } from '../foundry/FoundryAdapter';
 import { info, warn, error, logSection, notifyWarning } from '../utils/logging';
 import { TurnPrepApiInstance } from '../api/TurnPrepApi';
+import { ContextMenuHandler } from '../features/context-menu/ContextMenuHandler';
 
 // ============================================================================
 // Ready Hook Initialization
@@ -159,6 +160,14 @@ function setupDefaultSheetIntegration(): void {
 function registerHooks(): void {
   info('Registering module hooks...');
 
+  // Register context menu hooks
+  try {
+    ContextMenuHandler.registerContextMenus();
+    info('✓ Context menu hooks registered');
+  } catch (err) {
+    error('Failed to register context menu hooks', err as Error);
+  }
+
   // These will be implemented in later phases
   // For now, we're just setting up the infrastructure
 
@@ -171,11 +180,7 @@ function registerHooks(): void {
   // Hooks.on('combatStart', handleCombatStart);
   // Hooks.on('combatTurn', handleCombatTurn);
 
-  // Hook: Context menu
-  // This adds "Prepare for Next Turn" option to items
-  // Hooks.on('getActorSheetContextMenuItems', handleContextMenu);
-
-  info('Hook handlers prepared for Phase 2');
+  info('Hook handlers configured');
 }
 
 // ============================================================================
