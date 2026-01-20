@@ -19,6 +19,7 @@
 import { info, debug, warn } from '../../utils/logging';
 import { FoundryAdapter } from '../../foundry/FoundryAdapter';
 import { FLAG_SCOPE } from '../../constants';
+import { generateId } from '../../utils/data';
 import type {
   TurnPlan,
   TurnSnapshot,
@@ -177,88 +178,78 @@ export class RollHandler {
 
   /**
    * Show end-of-turn dialog
-   * Allows actor to select which turn plan to use or view history
+   * Prompts to save current turn plan to history and clear it
    */
   static async showEndOfTurnDialog(actor: Actor): Promise<void> {
     try {
-      // Get history from actor flags
-      const history = actor.getFlag(
+      // Get current turn plan
+      const currentPlan = actor.getFlag(
         FLAG_SCOPE,
-        'history'
-      ) as TurnHistorySnapshot[] | undefined;
+        'currentTurnPlan'
+      ) as TurnPlan | undefined;
 
-      if (!history || history.length === 0) {
-        debug(`No turn prep history for ${actor.name}`);
+      if (!currentPlan) {
+        debug(`No current turn plan for ${actor.name}`);
+        ui.notifications?.warn(`No active turn plan to save for ${actor.name}`);
         return;
       }
 
-      // If only one history item, show confirmation to load it
-      if (history.length === 1) {
-        const proceed = await Dialog.confirm({
-          title: `Load Turn Plan - ${actor.name}`,
-          content: `<p>Load "${history[0].name}" as your active turn plan?</p>`,
+      // Check if plan has any features
+      const hasFeatures =
+        currentPlan.actions.length > 0 ||
+        currentPlan.bonusActions.length > 0 ||
+        currentPlan.reactions.length > 0 ||
+        currentPlan.additionalFeatures.length > 0;
+
+      if (!hasFeatures) {
+        debug(`Current turn plan is empty for ${actor.name}`);
+        const clearEmpty = await Dialog.confirm({
+          title: `End Turn - ${actor.name}`,
+          content: `<p>Your current turn plan is empty. Clear it anyway?</p>`,
         });
 
-        if (proceed) {
-          await actor.setFlag(
-            FLAG_SCOPE,
-            'currentTurnPlan',
-            history[0]
-          );
-          ui.notifications?.info(`Loaded turn plan: ${history[0].name}`);
+        if (clearEmpty) {
+          await actor.unsetFlag(FLAG_SCOPE, 'currentTurnPlan');
+          ui.notifications?.info(`Turn plan cleared for ${actor.name}`);
         }
         return;
       }
 
-      // Multiple options - show selection dialog
-      let dialogHtml = `<form style="padding: 1rem;">`;
-      dialogHtml += `<p style="margin-bottom: 1rem;">Select a turn plan to load:</p>`;
-      dialogHtml += `<div style="display: flex; flex-direction: column; gap: 0.5rem;">`;
-
-      history.forEach((plan, index) => {
-        const timestamp = new Date(plan.timestamp).toLocaleTimeString();
-        dialogHtml += `
-          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-            <input type="radio" name="plan" value="${index}" ${index === 0 ? 'checked' : ''} />
-            <span><strong>${plan.name}</strong> - ${timestamp}</span>
-          </label>
-        `;
+      // Confirm saving to history
+      const proceed = await Dialog.confirm({
+        title: `End Turn - ${actor.name}`,
+        content: `<p>Save your current turn plan to history and clear it?</p>
+                  <p><strong>${currentPlan.name}</strong></p>
+                  <ul>
+                    <li>Actions: ${currentPlan.actions.length}</li>
+                    <li>Bonus Actions: ${currentPlan.bonusActions.length}</li>
+                    <li>Reactions: ${currentPlan.reactions.length}</li>
+                    <li>Other: ${currentPlan.additionalFeatures.length}</li>
+                  </ul>`,
       });
 
-      dialogHtml += `</div></form>`;
+      if (!proceed) {
+        debug(`User cancelled end-of-turn for ${actor.name}`);
+        return;
+      }
 
-      const dialog = new Dialog(
-        {
-          title: `Load Turn Plan - ${actor.name}`,
-          content: dialogHtml,
-          buttons: {
-            load: {
-              label: 'Load',
-              icon: '<i class="fas fa-check"></i>',
-              callback: async (html: JQuery) => {
-                const selectedIndex = parseInt(
-                  html.find('input[name="plan"]:checked').val() as string
-                );
-                const selectedPlan = history[selectedIndex];
-                await actor.setFlag(
-                  FLAG_SCOPE,
-                  'currentTurnPlan',
-                  selectedPlan
-                );
-                ui.notifications?.info(`Loaded turn plan: ${selectedPlan.name}`);
-              },
-            },
-            cancel: {
-              label: 'Cancel',
-              icon: '<i class="fas fa-times"></i>',
-            },
-          },
-          default: 'load',
-        },
-        { width: 500 }
+      // Create history snapshot with rolls
+      const snapshot = await RollHandler.createHistorySnapshot(actor, currentPlan);
+
+      // Get existing history and add new snapshot
+      const history = (actor.getFlag(FLAG_SCOPE, 'history') as TurnHistorySnapshot[]) || [];
+      history.push(snapshot);
+
+      // Save history
+      await actor.setFlag(FLAG_SCOPE, 'history', history);
+
+      // Clear current turn plan
+      await actor.unsetFlag(FLAG_SCOPE, 'currentTurnPlan');
+
+      ui.notifications?.info(
+        `Turn plan saved to history and cleared for ${actor.name}`
       );
-
-      dialog.render(true);
+      debug(`Saved turn plan to history: ${snapshot.name}`);
     } catch (error) {
       warn(`Failed to show end-of-turn dialog: ${error}`);
     }
@@ -277,33 +268,28 @@ export class RollHandler {
     try {
       debug(`Discovering rolls for plan "${plan.name}"`);
 
-      // Collect all feature IDs from the plan
-      const featureIds = new Set<string>();
-      [
+      // Collect all features from the plan
+      const features = [
         ...plan.actions,
         ...plan.bonusActions,
         ...plan.reactions,
         ...plan.additionalFeatures,
-      ].forEach((feature) => {
-        featureIds.add(feature.sourceItemId);
-      });
+      ];
 
-      if (featureIds.size === 0) {
+      if (features.length === 0) {
         debug('No features in plan, no rolls to discover');
         return rolls;
       }
 
       // Search recent chat messages for matching rolls
       const chatMessages = Array.from(game.messages || [])
-        .filter((msg: any) => msg.actor?.id === actor.id)
+        .filter((msg: any) => msg.speaker?.actor === actor.id)
         .sort((a: any, b: any) => b.timestamp - a.timestamp)
         .slice(0, 50); // Only look at recent 50 messages
 
       for (const msg of chatMessages) {
-        const roll = RollHandler.parseRollFromChatMessage(msg, featureIds);
-        if (roll) {
-          rolls.push(roll);
-        }
+        const discoveredRolls = RollHandler.parseRollsFromChatMessage(msg, features);
+        rolls.push(...discoveredRolls);
       }
 
       debug(`Found ${rolls.length} rolls for plan "${plan.name}"`);
@@ -345,32 +331,69 @@ export class RollHandler {
   }
 
   /**
-   * Parse a roll from a chat message
+   * Parse rolls from a chat message
+   * Returns multiple rolls if message contains attack + damage
    */
-  private static parseRollFromChatMessage(
+  private static parseRollsFromChatMessage(
     message: any,
-    featureIds: Set<string>
-  ): DiscoveredRoll | null {
+    features: TurnPlanFeature[]
+  ): DiscoveredRoll[] {
+    const discoveredRolls: DiscoveredRoll[] = [];
+
     try {
-      // Check if message has a roll
-      if (!message.roll) return null;
+      // Check if message has rolls array (Foundry V13+)
+      if (!message.rolls || message.rolls.length === 0) return discoveredRolls;
 
-      // Try to match the message to one of our feature IDs
-      // This would be enhanced with more sophisticated parsing
-      const roll = message.roll as any;
+      // Check for D&D5e activity data
+      const dnd5eFlags = message.flags?.dnd5e;
+      if (!dnd5eFlags?.activity && !dnd5eFlags?.item) return discoveredRolls;
 
-      return {
-        id: FoundryAdapter.generateId(),
-        actorName: message.actor?.name || 'Unknown',
-        itemName: message.flavor || 'Unknown roll',
-        rollFormula: roll.formula,
-        result: roll.total,
-        timestamp: message.timestamp || Date.now(),
-        chatMessageId: message.id,
-      };
+      // Try to match to a feature in the plan
+      const matchingFeature = features.find(
+        (f) =>
+          (dnd5eFlags.activity?.id && f.activityId === dnd5eFlags.activity.id) ||
+          (dnd5eFlags.item?.id && f.sourceItemId === dnd5eFlags.item.id)
+      );
+
+      if (!matchingFeature) {
+        debug(`Message for ${dnd5eFlags.item?.id} not in turn plan`);
+        return discoveredRolls;
+      }
+
+      // Get item name from dnd5e flags or message flavor
+      const itemName = dnd5eFlags.item?.uuid 
+        ? (fromUuidSync(dnd5eFlags.item.uuid) as any)?.name || message.flavor || 'Unknown'
+        : message.flavor || 'Unknown';
+      const actorName = message.speaker?.alias || 'Unknown';
+      
+      // Get activity name if available
+      const activityName = dnd5eFlags.activity?.uuid
+        ? (fromUuidSync(dnd5eFlags.activity.uuid) as any)?.name
+        : null;
+
+      // Parse each roll in the message
+      message.rolls.forEach((roll: any, index: number) => {
+        const rollType = roll.constructor.name; // 'D20Roll', 'DamageRoll', etc.
+        const rollLabel = rollType === 'D20Roll' ? 'Attack' : rollType === 'DamageRoll' ? 'Damage' : rollType;
+        
+        // Use activity name if available, otherwise use item name
+        const displayName = activityName ? `${itemName}: ${activityName}` : itemName;
+        
+        discoveredRolls.push({
+          id: generateId(),
+          actorName,
+          itemName: `${displayName} (${rollLabel})`,
+          rollFormula: roll.formula,
+          result: roll.total,
+          timestamp: message.timestamp || Date.now(),
+          chatMessageId: message.id,
+        });
+      });
+
+      return discoveredRolls;
     } catch (error) {
-      debug(`Failed to parse roll from message: ${error}`);
-      return null;
+      debug(`Failed to parse rolls from message: ${error}`);
+      return discoveredRolls;
     }
   }
 
@@ -392,7 +415,7 @@ export class RollHandler {
       const dc = dcMatch ? parseInt(dcMatch[1]) : 0;
 
       return {
-        id: FoundryAdapter.generateId(),
+        id: generateId(),
         actorName: message.actor?.name || 'Unknown',
         savingThrowType,
         dc,
@@ -429,7 +452,7 @@ export class RollHandler {
       const savingThrows = await RollHandler.discoverSavingThrowsForActor(actor);
 
       const snapshot: TurnHistorySnapshot = {
-        id: FoundryAdapter.generateId(),
+        id: generateId(),
         name: plan.name,
         actions: plan.actions,
         bonusActions: plan.bonusActions,
@@ -452,7 +475,7 @@ export class RollHandler {
 
       // Return basic snapshot without rolls if discovery fails
       return {
-        id: FoundryAdapter.generateId(),
+        id: generateId(),
         name: plan.name,
         actions: plan.actions,
         bonusActions: plan.bonusActions,
@@ -491,7 +514,7 @@ export class RollHandler {
 
       // Create new checkpoint
       const checkpoint: EditCheckpoint = {
-        id: FoundryAdapter.generateId(),
+        id: generateId(),
         timestamp: Date.now(),
         snapshot: JSON.parse(JSON.stringify(plan)), // Deep copy
         description,

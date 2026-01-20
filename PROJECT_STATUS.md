@@ -1,8 +1,8 @@
 # Project Status Overview
 
-**Last Updated**: January 19, 2026  
+**Last Updated**: January 20, 2026  
 **Overall Status**: 🟢 ON TRACK  
-**Current Phase**: Phase 3 (Features Layer) - Implementation In Progress  
+**Current Phase**: Phase 4 (UI Components) - Planning  
 
 ---
 
@@ -33,45 +33,57 @@
 
 ---
 
-## Active Work 🔄
+### Phase 3: Features Layer (100% Complete)
+- [x] Settings system (settings.ts) - 2 world settings
+- [x] Context menu integration (ContextMenuHandler.ts) - "Add to Turn Prep" with Tidy5e
+- [x] Roll integration (RollHandler.ts) - Chat roll discovery, history snapshots, checkpoints
+- [x] End-of-turn dialog - Saves current plan to history and clears
+- [x] Edit history checkpoints - Configurable limit (default 10)
+- [x] Missing feature detection - Auto-removes unavailable features
+- [x] Roll discovery - Matches chat messages to turn plan features by activity/item ID
+- [x] History snapshots - Embedded discovered rolls with full metadata
 
-### Phase 3: Features (Implementation In Progress)
-- [x] Settings system (settings.ts) - 2 world settings integrated into init.ts
-- [x] Context menu integration (ContextMenuHandler.ts) - 370+ lines with activity selection dialog
-- [x] Roll integration (RollHandler.ts) - 500+ lines with chat roll discovery, history snapshots, edit checkpoints
-- [x] End-of-turn dialog system - Initiative hook listeners registered
-- [x] Edit history checkpoints - Up to 20 per turn plan (configurable)
-- [x] Missing feature detection - Auto-removes unavailable features from plans
+**Status**: All files compiled, extensively tested in Foundry console, zero errors
 
-**Current Task**: Verify integration and create tests for Phase 3 systems
-
-**Completed Phase 3 Systems:**
-- ✓ Settings: 2 world-level configuration options
-- ✓ Context Menu: "Add to Turn Prep" with activity selection
-- ✓ Roll Discovery: Chat-based roll and saving throw detection
-- ✓ History Snapshots: Turns with embedded rolls and saves
-- ✓ Edit History: Checkpoint system with restore capability
-- ✓ End-of-Turn: Dialog for plan selection on initiative advance
-- ✓ Feature Validation: Auto-clean missing items from plans
+**Key Achievements:**
+- ✓ Context menu "Add to Turn Prep" appears on items with activities in Tidy5e sheets
+- ✓ Activity selection dialog shows activity names (e.g., "Attack", "Grapple", "Shove")
+- ✓ Roll discovery finds attack and damage rolls from chat messages
+- ✓ Rolls matched to features using `msg.flags.dnd5e.activity.id` and `msg.flags.dnd5e.item.id`
+- ✓ End-of-turn dialog saves current plan to history and clears it
+- ✓ Edit checkpoints save and restore turn plan snapshots
+- ✓ Feature validation removes deleted items from plans
+- ✓ All testing documented in PHASE3_QUICK_TEST.md
 
 ---
 
-## Upcoming Work 📋
+## Active Work 🔄
 
-### Phase 4: UI Components (Not Started)
-- [ ] Svelte components
-- [ ] Form inputs
-- [ ] Panels and lists
+### Phase 4: UI Components (Planning)
+- [ ] Svelte 5 component architecture
+- [ ] DM Questions panel
+- [ ] Turn Plans panel with feature lists
+- [ ] Reactions panel
+- [ ] Feature selector widget
+- [ ] History/Favorites list
+- [ ] Roll button component
+
+**Current Task**: Create PHASE4_CLARIFICATIONS.md and gather requirements
+
+---
+
+### Upcoming Work 📋
 
 ### Phase 5: Sheet Integration (Not Started)
-- [ ] Tidy 5E integration
+- [ ] Tidy 5E tab integration
 - [ ] Default sheet fallback
-- [ ] Tab registration
+- [ ] Tab registration hooks
 
 ### Phase 6-8: Polish & Release (Not Started)
 - [ ] Styling refinement
-- [ ] Localization
+- [ ] Localization strings
 - [ ] Testing & bug fixes
+- [ ] Release preparation
 
 ---
 
@@ -82,7 +94,10 @@
 - **PHASE1_COMPLETION.md** - What we built in Phase 1
 - **PHASE2_IMPLEMENTATION_PLAN.md** - Detailed Phase 2 requirements
 - **PHASE2_CLARIFICATIONS.md** - Your decisions for Phase 2
-- **PHASE3_CLARIFICATIONS.md** - Questions for Phase 3 (TBD)
+- **PHASE3_IMPLEMENTATION_PLAN.md** - Phase 3 features layer plan
+- **PHASE3_CLARIFICATIONS.md** - Your decisions for Phase 3
+- **PHASE3_COMPLETION.md** - What we built in Phase 3
+- **PHASE3_QUICK_TEST.md** - Testing guide with all Phase 3 tests verified
 - **TODO.md** - Implementation tracking
 - **DEVLOG.md** - Development notes
 
@@ -148,6 +163,14 @@ npm run link-remove
 ✅ Module loads in Foundry  
 ✅ Settings appear in World Settings  
 ✅ API is accessible (window.TurnPrepAPI)  
+✅ Data layer fully functional (storage, feature selection, filtering)  
+✅ Context menu \"Add to Turn Prep\" working in Tidy5e sheets  
+✅ Roll discovery finds and matches rolls from chat  
+✅ History snapshots save with embedded roll data  
+✅ Edit checkpoints save and restore turn plans  
+✅ End-of-turn dialog workflow complete  
+✅ Feature validation removes missing items  
+✅ Build: 93.26 kB (gzip: 20.42 kB)  
 ✅ No console errors  
 ✅ All Phase 1 tests passing  
 

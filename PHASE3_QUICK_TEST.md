@@ -10,6 +10,7 @@
 ## Latest Updates
 
 ### Context Menu Integration - WORKING! ✅
+### Roll Integration - WORKING! ✅
 
 **What was fixed:**
 1. ✅ Hook registration moved to `ready.ts` - `ContextMenuHandler.registerContextMenus()` now explicitly called
@@ -17,12 +18,19 @@
 3. ✅ Activity names shown in selection dialog (e.g., "Attack", "Grapple", "Shove") instead of just "Action"
 4. ✅ Reactions now stored in `turnPrepData.reactions[]` instead of `currentTurnPlan.reactions[]`
 5. ✅ Edit checkpoints removed for current turn plan (only used for history snapshots)
+6. ✅ Roll discovery implementation - matches chat messages to turn plan features by activity/item ID
+7. ✅ End-of-turn dialog fixed - now saves current plan to history (not loads from history)
 
 **Verified working:**
 - "Add to Turn Prep" appears in context menus for items with activities
 - Items are successfully added to actor flags
 - Activity selection dialog shows correct names
-- No errors when adding features
+- Roll discovery finds attack and damage rolls from chat
+- Rolls matched to features by activity ID and item ID
+- Snapshots created with embedded discovered rolls
+- Edit checkpoints save and restore correctly
+- End-of-turn dialog saves plan to history and clears current plan
+- No errors when adding features or discovering rolls
 - Data persists correctly
 
 ---
@@ -72,6 +80,8 @@ if (!actor) {
 ## Test 1: Settings (2 min)
 
 ```javascript
+const actor = game.actors.getName('Frodo');
+
 // Should return 10 (default)
 game.settings.get('turn-prep', 'editHistoryCheckpoints')
 
@@ -133,9 +143,10 @@ console.log('Reactions:', turnPrepData.reactions);
 
 ---
 
-## Test 3: Roll Integration (5 min)
+## Test 3: Roll Integration (5 min) ✅ VERIFIED WORKING
 
 ```javascript
+const actor = game.actors.getName('Frodo');
 const plan = actor.getFlag('turn-prep', 'currentTurnPlan');
 
 // Create snapshot
@@ -163,40 +174,98 @@ if (checkpoints?.length > 0) {
   console.log(restored)  // Should return restored plan
 }
 
-// Show end-of-turn dialog
+// Show end-of-turn dialog 
 await TurnPrepAPI.rolls.showEndOfTurnDialog(actor)
-// Dialog should appear if history exists
+// Dialog asks to save current plan to history and clear it
 ```
 
-**Expected Results**:
-- ✅ Snapshots created with correct structure
+**Expected Results**: ✅ ALL VERIFIED
+- ✅ Snapshots created with correct structure including discovered rolls
+- ✅ Roll discovery finds attack and damage rolls from chat messages
+- ✅ Rolls properly matched to turn plan features by activity/item ID
 - ✅ Checkpoints stored and limited by setting
 - ✅ Plans can be restored from checkpoints
-- ✅ End-of-turn dialog appears
+- ✅ End-of-turn dialog saves current plan to history and clears it
+- ✅ Running dialog second time shows "no plan to save" (correctly cleared)
 
 ---
 
-## Test 4: Feature Validation (2 min)
+## Test 4: Feature Validation (2 min) ✅ VERIFIED WORKING
 
 ```javascript
-const plan = actor.getFlag('turn-prep', 'currentTurnPlan');
+const actor = game.actors.getName('Frodo');
+let plan = actor.getFlag('turn-prep', 'currentTurnPlan');
+
+// Ensure we have a current plan to test with
+if (!plan) {
+  console.log('No current plan, creating one...');
+  plan = {
+    name: 'Test Plan',
+    actions: [],
+    bonusActions: [],
+    reactions: [],
+    additionalFeatures: [],
+    movement: '',
+    roleplay: '',
+    notes: '',
+    trigger: '',
+    timestamp: Date.now()
+  };
+  await actor.setFlag('turn-prep', 'currentTurnPlan', plan);
+  console.log('Created test plan');
+}
 
 // Check if features exist
-const cleaned = await TurnPrepAPI.rolls.removeMissingFeaturesFromPlan(actor, plan)
-console.log(cleaned)  // Should have same or fewer features
+const cleaned = await TurnPrepAPI.rolls.removeMissingFeaturesFromPlan(actor, plan);
+console.log('Cleaned plan:', cleaned);  // Should have same or fewer features
 
-// Delete an item and test again
-const itemToDelete = actor.items.values().next().value;  // Get first item
-await itemToDelete.delete();
+// Find an item with an activity that uses an Action
+const itemWithAction = actor.items.find(item => {
+  const activities = item.system?.activities;
+  if (!activities) return false;
+  return Array.from(activities.values()).some(act => 
+    act.activation?.type === 'action'
+  );
+});
 
-// Run again - should remove missing features
-const recleaned = await TurnPrepAPI.rolls.removeMissingFeaturesFromPlan(actor, plan)
-console.log(recleaned)  // Should have fewer features
+if (!itemWithAction) {
+  console.error('No item with Action activity found for testing');
+} else {
+  console.log('Found item to duplicate:', itemWithAction.name);
+  
+  // Duplicate the item
+  const duplicatedItems = await actor.createEmbeddedDocuments('Item', [itemWithAction.toObject()]);
+  const duplicatedItem = duplicatedItems[0];
+  console.log('Duplicated item:', duplicatedItem.name, duplicatedItem.id);
+  
+  // Add the duplicate to the current turn plan
+  const activity = Array.from(duplicatedItem.system.activities.values())[0];
+  const currentPlan = actor.getFlag('turn-prep', 'currentTurnPlan');
+  
+  currentPlan.actions.push({
+    sourceItemId: duplicatedItem.id,
+    activityId: activity.id,
+    name: duplicatedItem.name
+  });
+  
+  await actor.setFlag('turn-prep', 'currentTurnPlan', currentPlan);
+  console.log('Added duplicate to turn plan');
+  
+  // Delete the duplicate item
+  await duplicatedItem.delete();
+  console.log('Deleted duplicate item');
+  
+  // Run validation - should remove the missing feature
+  const recleaned = await TurnPrepAPI.rolls.removeMissingFeaturesFromPlan(actor, currentPlan);
+  console.log('After removing missing features:', recleaned);
+  console.log('Features removed:', currentPlan.actions.length - recleaned.actions.length);
+}
 ```
 
-**Expected Results**:
-- ✅ Missing features removed
-- ✅ Count decreases when items deleted
+**Expected Results**: ✅ ALL VERIFIED
+- ✅ Missing features correctly identified and removed
+- ✅ Feature count decreases by 1 when deleted item's feature is removed
+- ✅ Test is non-destructive and repeatable
 - ✅ No errors in console
 
 ---
@@ -250,13 +319,33 @@ if (a) console.log(a.name, 'Plan:', p, 'History:', h, 'Checkpoints:', c)
 
 5. **Edit Checkpoints**: Only create checkpoints for history snapshots, not for current turn plan modifications. The current plan is a working space.
 
-### Files Modified
-- `src/hooks/ready.ts` - Added explicit `ContextMenuHandler.registerContextMenus()` call
-- `src/features/context-menu/ContextMenuHandler.ts` - Fixed imports, activity labels, reactions storage
-- `src/features/roll-integration/RollHandler.ts` - Removed checkpoint creation for current plan
+### Files ModifiedImplemented roll discovery, fixed end-of-turn dialog, fixed generateId imports
 
 ---
 
+## Known Issues
+
+No known issues! Context menu and roll integration fully functional.
+
+---
+
+## Roll Discovery Implementation Details
+
+**How it works:**
+1. Filters chat messages by actor using `msg.speaker.actor`
+2. Checks for D&D5e flags: `msg.flags.dnd5e.activity` and `msg.flags.dnd5e.item`
+3. Matches to turn plan features by activity ID (primary) or item ID (fallback)
+4. Extracts all rolls from `msg.rolls[]` array (Foundry V13+)
+5. Identifies roll types: D20Roll (attack), DamageRoll (damage)
+6. Resolves item and activity names using `fromUuidSync()`
+7. Returns discovered rolls with full metadata
+
+**Data captured per roll:**
+- Actor name from chat message speaker
+- Item name and activity name from D&D5e system data
+- Roll formula and total result
+- Timestamp and chat message ID for reference
+- Roll type label (Attack, Damage, etc.)
 ## Known Issues
 
 No known issues! Context menu integration is fully functional.

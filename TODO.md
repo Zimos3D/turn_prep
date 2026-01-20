@@ -57,15 +57,28 @@ Each TODO in code files corresponds to items in this list.
 - [x] Global exports for console access
 - [x] Comprehensive testing - all features working
 
-### Phase 3: Features (Core Logic) - COMPLETE ✅
+### Phase 3: Features Layer (Core Logic) ✅ COMPLETE
 - [x] Settings system (settings.ts) - 2 world settings integrated
-- [x] Context menu integration (ContextMenuHandler.ts) - 370+ lines
-- [x] Roll integration (RollHandler.ts) - 500+ lines
-- [x] End-of-turn dialog system - Initiative hooks registered
-- [x] Edit history checkpoints - Configurable checkpoints (1-20, default 5)
-- [x] Missing feature detection - Auto-cleans unavailable features
+- [x] Context menu integration (ContextMenuHandler.ts) - \"Add to Turn Prep\" with Tidy5e
+- [x] Roll integration (RollHandler.ts) - Roll discovery, snapshots, checkpoints
+- [x] End-of-turn dialog - Saves current plan to history and clears
+- [x] Edit history checkpoints - Configurable limit (default 10)
+- [x] Missing feature detection - Auto-removes unavailable features
+- [x] Comprehensive testing - PHASE3_QUICK_TEST.md with all tests verified
 
-### Phase 4: UI Components (Visual Layer)
+**Phase 3 Key Findings:**
+- Hook registration must be explicit from ready.ts (not self-registered)
+- Activity names from `activity.name`, not activation type labels  
+- Reactions stored in `turnPrepData.reactions[]`, not in turn plans
+- Roll matching via `msg.flags.dnd5e.activity.id` and `msg.flags.dnd5e.item.id`
+- Chat messages use `msg.speaker.actor` for actor ID (not `msg.actor.id`)
+- Foundry V13+ uses `msg.rolls[]` array (not `msg.roll` singular)
+
+### Phase 4: UI Components (Visual Layer) 🔄 NEXT
+- [ ] **PRIORITY**: Migrate activity selection dialog from Dialog (V1) to ApplicationV2 or Svelte component
+  - Current: Using deprecated `Dialog` class in ContextMenuHandler.ts (line 343)
+  - Deprecated since Foundry V13, will be removed in V16
+  - Replace with either ApplicationV2 or proper Svelte dialog component
 - [ ] Simple components first: RollButton, HistoryFavoritesList
 - [ ] Input components: FeatureSelectorWidget
 - [ ] Panel components: DmQuestionsPanel, ReactionsPanel

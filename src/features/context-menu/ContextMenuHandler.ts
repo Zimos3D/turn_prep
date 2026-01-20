@@ -85,8 +85,6 @@ export class ContextMenuHandler {
    * Register all context menu hooks
    */
   static registerContextMenus(): void {
-    console.log('[TURN-PREP] registerContextMenus() called');
-    
     try {
       // Register item context menu (Add to Turn Prep)
       ContextMenuHandler.registerItemContextMenu();
@@ -97,9 +95,9 @@ export class ContextMenuHandler {
       // Register drag & drop handlers
       ContextMenuHandler.registerDragDropHandlers();
       
-      console.log('[TURN-PREP] Context menus registered successfully');
+      info('Context menus registered');
     } catch (error) {
-      console.error('[TURN-PREP] Failed to register context menus:', error);
+      warn('Failed to register context menus:', error);
     }
   }
 
@@ -108,74 +106,60 @@ export class ContextMenuHandler {
    * Works with both Tidy5e and default sheets
    */
   private static registerItemContextMenu(): void {
-    console.log('[TURN-PREP] registerItemContextMenu() called');
+    debug('Registering item context menu hook');
 
     // Register the standard dnd5e hook
     // This is used by Tidy5e and the default D&D 5e system sheets
     const hookCallback = (item: any, menuItems: any[]) => {
-      console.log('╔═══════════════════════════════════════════════════════════════╗');
-      console.log('║ [TURN-PREP CALLBACK] OUR HOOK CALLBACK IS RUNNING!           ║');
-      console.log('╚═══════════════════════════════════════════════════════════════╝');
-      console.log(`[TURN-PREP] Item: ${item?.name ?? 'unknown'} | Type: ${item?.type ?? 'unknown'}`);
-      console.log(`[TURN-PREP] menuItems array length: ${menuItems?.length ?? 'undefined'}`);
-      console.log(`[TURN-PREP] menuItems is Array: ${Array.isArray(menuItems)}`);
-      
       try {
-        // Simple validation
+        // Validate item
         if (!item) {
-          console.log('[TURN-PREP] No item provided');
+          debug('Context menu hook fired with no item');
           return;
         }
 
         // Ensure the item is owned by an actor
         const actor = item.actor || item.parent;
         if (!actor) {
-          console.log('[TURN-PREP] No actor found for item');
+          debug(`No actor found for item: ${item.name}`);
           return;
         }
 
-        console.log(`[TURN-PREP] Processing item: ${item.name} (type: ${item.type}) on actor: ${actor.name}`);
-        
         // Get activities
         let activities: any[] = [];
         try {
           activities = FeatureSelector.getActivitiesForItem(item);
-          console.log(`[TURN-PREP] Found ${activities.length} activities for ${item.name}`);
         } catch (actErr) {
-          console.error('[TURN-PREP] Error getting activities:', actErr);
+          warn(`Error getting activities for ${item.name}:`, actErr);
           return;
         }
 
+        // Skip items with no activities
         if (activities.length === 0) {
-          console.log(`[TURN-PREP] No activities found for ${item.name}, skipping context menu item`);
           return;
         }
 
-        console.log(`[TURN-PREP] Creating menu item for ${item.name} with ${activities.length} activities`);
+        debug(`Adding context menu for ${item.name} (${activities.length} activities)`);
 
         // Create the menu item following Tidy5e's structure
         const menuItem = {
           name: 'Add to Turn Prep',
           icon: '<i class="fas fa-plus fa-fw"></i>',
           group: 'customize', // Use Tidy5e's customize group
-          condition: () => {
-            // Only show if the item has activities
-            return activities.length > 0;
-          },
+          condition: () => activities.length > 0,
           callback: async (li?: HTMLElement) => {
             try {
-              console.log('[TURN-PREP] "Add to Turn Prep" clicked for:', item.name);
+              debug(`Adding ${item.name} to turn prep`);
               await ContextMenuHandler.handleAddToTurnPrep(actor, item, activities);
             } catch (cbErr) {
-              console.error('[TURN-PREP] Error in callback:', cbErr);
-              ui.notifications?.error('Failed to add item to Turn Prep');
+              warn(`Failed to add ${item.name} to turn prep:`, cbErr);
+              ui.notifications?.error(`Failed to add ${item.name} to Turn Prep`);
             }
           },
         };
 
         // Add to array
         menuItems.push(menuItem);
-        console.log(`[TURN-PREP] Menu item added successfully. Total menu items: ${menuItems.length}`);
 
       } catch (err) {
         console.error('[TURN-PREP] EXCEPTION in hook callback:', err);
@@ -184,24 +168,14 @@ export class ContextMenuHandler {
     };
 
     // Register the hook - this fires for every item context menu in D&D5e and Tidy5e
-    console.log('[TURN-PREP] Registering dnd5e.getItemContextOptions hook');
     Hooks.on('dnd5e.getItemContextOptions', hookCallback);
-    console.log('[TURN-PREP] dnd5e.getItemContextOptions hook registered successfully');
-
-    // Also try the Tidy5e-specific hook as a backup
-    Hooks.on('tidy5e-sheet.actorItemUseContextMenu', (item: any, options: any) => {
-      console.log('[TURN-PREP] tidy5e-sheet.actorItemUseContextMenu hook fired for:', item?.name);
-      // This hook fires before the context menu is shown
-      // We can inspect but the main hook above should handle adding our menu item
-    });
+    debug('Registered dnd5e.getItemContextOptions hook');
 
     // Fallback hook: Standard Foundry sheets that don't use dnd5e.getItemContextOptions
     Hooks.on('getActorSheetContextMenuItems', (html: HTMLElement, menuItems: ContextMenuItem[]) => {
       debug('getActorSheetContextMenuItems hook fired (fallback for non-Tidy5e sheets)');
       ContextMenuHandler.addMenuItemsToList(html, menuItems);
     });
-
-    console.log('[TURN-PREP] All context menu hooks registered');
   }
 
   /**
@@ -365,7 +339,9 @@ export class ContextMenuHandler {
 
       dialogHtml += `</div></form>`;
 
-      // Create dialog
+      // TODO: Migrate to ApplicationV2 in Phase 4 (Foundry V13+ deprecates Dialog/ApplicationV1)
+      // This is a temporary solution using the legacy Dialog class
+      // Will be replaced with proper Svelte dialog component in Phase 4 UI implementation
       const dialog = new Dialog(
         {
           title: `Add ${item.name} to Turn Prep`,
