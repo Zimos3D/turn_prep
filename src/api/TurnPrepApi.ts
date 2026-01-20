@@ -9,6 +9,8 @@
 import { MODULE_ID } from '../constants';
 import { FoundryAdapter } from '../foundry/FoundryAdapter';
 import { info, warn } from '../utils/logging';
+import { TurnPrepStorage } from '../features/data/TurnPrepStorage';
+import { FeatureSelector } from '../features/feature-selection/FeatureSelector';
 import type { TurnPrepData, DMQuestion, TurnPlan, Reaction } from '../types';
 
 /**
@@ -119,6 +121,59 @@ export class TurnPrepApi {
    */
   isMidiQOLAvailable(): boolean {
     return FoundryAdapter.isModuleActive('midi-qol');
+  }
+
+  // ========================================================================
+  // Phase 2: Data Layer Methods
+  // ========================================================================
+
+  /**
+   * Load Turn Prep data from actor flags
+   * Returns empty data if none exists
+   * @param actor - The actor to load data for
+   * @returns Promise resolving to TurnPrepData
+   */
+  async loadTurnPrepData(actor: any): Promise<TurnPrepData> {
+    return TurnPrepStorage.load(actor);
+  }
+
+  /**
+   * Save Turn Prep data to actor flags
+   * @param actor - The actor to save data for
+   * @param data - The TurnPrepData to save
+   * @returns Promise that resolves when saved
+   */
+  async saveTurnPrepDataToFlags(actor: any, data: TurnPrepData): Promise<void> {
+    return TurnPrepStorage.save(actor, data);
+  }
+
+  /**
+   * Get all selectable features for an actor
+   * @param actor - The actor to query
+   * @returns Array of selectable features
+   */
+  getAllActorFeatures(actor: any): any[] {
+    return FeatureSelector.getAllSelectableFeatures(actor);
+  }
+
+  /**
+   * Get features by activation type (action, bonus, reaction)
+   * @param actor - The actor to query
+   * @param activationType - The activation type
+   * @returns Array of matching features
+   */
+  getFeaturesByActivationType(actor: any, activationType: string): any[] {
+    return FeatureSelector.getFeaturesByActivationType(actor, activationType);
+  }
+
+  /**
+   * Get features by item type (spell, weapon, feat, etc.)
+   * @param actor - The actor to query
+   * @param itemType - The item type
+   * @returns Array of matching features
+   */
+  getFeaturesByItemType(actor: any, itemType: string): any[] {
+    return FeatureSelector.getFeaturesByItemType(actor, itemType);
   }
 
   // ========================================================================

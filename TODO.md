@@ -48,15 +48,19 @@ Each TODO in code files corresponds to items in this list.
 - [x] Constants & settings (constants.ts)
 - [x] Module manifest & linking working
 
-### Phase 2: Data Layer (Storage & Models) 🔄 IN PROGRESS
-- [ ] Data models (TurnPrepData.ts)
-- [ ] Data persistence (TurnPrepStorage.ts)
-- [ ] Settings system (settings.ts)
+## Phase 2: Data Layer (Storage & Models) ✅ COMPLETE
+- [x] Data models (TurnPrepData.ts) - 92 lines
+- [x] Data persistence (TurnPrepStorage.ts) - 165 lines
+- [x] Feature selection (FeatureSelector.ts) - 310 lines via Activities discovery
+- [x] Feature filtering (FeatureFilter.ts) - 210 lines
+- [x] API integration with Phase 2 methods
+- [x] Global exports for console access
+- [x] Comprehensive testing - all features working
 
 ### Phase 3: Features (Core Logic)
-- [ ] Feature selection (FeatureSelector.ts, FeatureFilter.ts)
-- [ ] Roll integration (RollHandler.ts)
+- [ ] Settings system (settings.ts)
 - [ ] Context menu integration (ContextMenuHandler.ts)
+- [ ] Roll integration (RollHandler.ts)
 
 ### Phase 4: UI Components (Visual Layer)
 - [ ] Simple components first: RollButton, HistoryFavoritesList

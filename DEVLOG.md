@@ -1,5 +1,48 @@
 # Daily Development Log & Checklist
 
+## Phase 2 - COMPLETE ✅
+
+### What We Built
+- **4 core data layer files** (TurnPrepData.ts, TurnPrepStorage.ts, FeatureSelector.ts, FeatureFilter.ts)
+- **777 lines of TypeScript** implementing data persistence, feature querying, and filtering
+- **Data validation & auto-correction** system for corrupted actor flags
+- **Feature querying from D&D 5e Activities** (major discovery: items store features in activities collection)
+- **Feature filtering & organization** utilities (grouping by activation type, sorting, searching, deduplication)
+- **Public API expansion** with Phase 2 methods exposed globally for testing
+- **Comprehensive testing suite** - all functionality validated in Foundry console
+
+### Issues We Resolved
+1. **Classes Not Exposed Globally** - Added Phase 2 classes and utilities to global scope in init.ts
+2. **Zero Features Found** - Discovered D&D 5e uses `item.system.activities` Collection, not direct activation fields
+3. **Activities System Misunderstanding** - Items can have multiple activities, each with its own `activation.type`
+4. **Missing Utility Exports** - Added generateId, createTurnSnapshot, validateAndCorrectTurnPrepData to global exports
+5. **Additional Features Field Too Restrictive** - Added getAllAvailableFeatures() for features without activation costs
+
+### Critical Discovery: D&D 5e Activities System
+**How it actually works:**
+- Items store features in `item.system.activities` (a Foundry Collection)
+- Each activity has: `activation.type`, `uses`, `cost`, and other properties
+- Must iterate activities: `for (const activity of item.system.activities)`
+- Extract activation type from each activity: `activity.activation.type`
+- Items can have multiple activities with different activation types on the same item
+- This applies to weapons, spells, feats, class features, and homebrew items
+
+### Testing Checklist (All Passed ✅)
+- [x] Feature query finds 14 features on test character
+- [x] Features grouped correctly: 9 actions, 3 bonus actions, 1 reaction
+- [x] Search functionality finds specific features (e.g., "sword")
+- [x] Deduplication removes duplicate itemIds (14→11 after dedup)
+- [x] Turn plan creation and persistence working
+- [x] Snapshot creation and favorites persistence working
+- [x] DM questions persistence working
+- [x] Reactions creation and persistence working
+- [x] Feature metadata retrieval accurate
+- [x] Data validation with auto-correction working
+- [x] All API methods accessible from console
+- [x] Module builds cleanly: 53.12 kB, 0 errors
+
+---
+
 ## Phase 1 - COMPLETE ✅
 
 ### What We Built

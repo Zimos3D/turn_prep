@@ -151,7 +151,52 @@ api.svelte.framework = {
 
 ### D&D 5e System Details
 
-**Activation Cost Values** (from user's HTML sample):
+**The Activities System - CRITICAL DISCOVERY (Phase 2)**
+
+The modern D&D 5e system uses an **Activities Collection** to store features and their activation costs. This is the authoritative source for querying a character's features.
+
+**How to query features correctly:**
+```javascript
+// CORRECT: Iterate the activities collection on each item
+for (const item of actor.items) {
+  for (const activity of item.system.activities) {
+    if (activity.activation?.type === 'action') {
+      // Found an action cost feature
+      const feature = {
+        itemId: item.id,
+        itemName: item.name,
+        itemType: item.type,
+        actionType: activity.activation.type
+      };
+    }
+  }
+}
+
+// WRONG (old approach): ❌ DON'T use this
+// const actions = actor.items.filter(item => item.system?.activation?.type === 'action');
+// The activation property may exist at item level but activities are the canonical source
+```
+
+**Activity Properties:**
+- `activity.activation.type` - Values: `'action'`, `'bonus'`, `'reaction'`, `'minute'`, `'hour'`, `'day'`, `'turnStart'`, `'turnEnd'`, `'legendary'`, `'mythic'`, `'lair'`, `'crew'`, `'special'`, `''` (none)
+- `activity.activation.cost` - Numeric cost (usually 1)
+- `activity.name` - Activity name (can differ from item name)
+- `activity.uses` - Available uses/slots
+- And various other properties (range, target, damage, etc.)
+
+**Activity Types to Filter:**
+- **Action features**: `activation.type === 'action'` (main action economy)
+- **Bonus actions**: `activation.type === 'bonus'`
+- **Reactions**: `activation.type === 'reaction'`
+- **Free/Special**: Any other value or empty string
+
+**Important Notes:**
+- An item can have **multiple activities** with different activation types
+- For example, a spell might have one activity for casting (bonus action) and another for some special effect
+- Items without activities (or activities without activation.type) are still features but use no action economy
+- All item types support activities: weapons, spells, feats, class features, homebrew items
+
+**Activation Cost Values** (from research):
 - Standard: `action`, `bonus`, `reaction`
 - Time: `minute`, `hour`, `day`
 - Rest: `longRest`, `shortRest`
@@ -161,35 +206,16 @@ api.svelte.framework = {
 - Special: `special`, `""` (none)
 
 **Item Types in 5e System:**
-- Actions, Bonus Actions, Reactions are properties on items (via `system.activation.type`)
-- No special handling needed for item type filtering initially
+- All item types support the activities system: 'spell', 'feature', 'equipment', 'loot', 'weapon', 'tool', 'consumable', 'feat', 'class', etc.
+- No special handling needed for item type filtering - activities transcend type boundaries
 - Features/spells/items all live in `actor.items`
 
-**Getting items by activation cost:**
-```javascript
-// Confirmed approach (stable across 5.1 and 5.2)
-actor.items.filter(item => item.system?.activation?.type === 'reaction')
-
-// Get all action economy items
-const actions = actor.items.filter(item => item.system?.activation?.type === 'action');
-const bonusActions = actor.items.filter(item => item.system?.activation?.type === 'bonus');
-const reactions = actor.items.filter(item => item.system?.activation?.type === 'reaction');
-
-// Items without activation cost (no activation.type)
-const noActivation = actor.items.filter(item => !item.system?.activation?.type);
-```
-
-**Stable Item Properties:**
+**Safe Item Properties (for snapshots):**
 - `item.id` - Unique identifier (stable for snapshots)
 - `item.name` - Display name (safe to snapshot)
 - `item.type` - Item type: 'spell', 'feature', 'equipment', 'loot', 'weapon', 'tool', 'consumable', etc.
-- `item.system.activation.type` - Activation cost (safe to rely on)
+- `activity.activation.type` - Activation cost (safe to rely on)
 - `item.img` - Icon/image path (safe to snapshot if needed)
-
-**Safe to use without data migration:**
-- All basic item properties above
-- No breaking changes expected for activation cost in v5.x
-- Item data structure has stabilized in v5.1+
 
 ### Breaking Changes Between 5e Versions
 
@@ -201,24 +227,25 @@ The D&D 5e v5.2.0 release **ONLY supports Foundry Virtual Tabletop v13 and great
 - Vehicle data structure changed significantly (Dimensions, Creature Capacity, Crew & Passengers)
 - Not automatically migrated - old data preserved but invisible
 - Activities system enhanced with new visibility constraints
-- No impact on activation costs (still use `system.activation.type`)
+- Activities are the canonical source for feature querying (verified in Phase 2)
 
-**Item Activation Structure (Stable):**
-- Still accessed via `item.system.activation.type`
-- Values remain consistent: `action`, `bonus`, `reaction`, etc.
-- No changes expected in v5.x series for activation costs
-- Safe to rely on: `actor.items.filter(item => item.system?.activation?.type === 'reaction')`
+**Activities System Evolution:**
+- **v5.1.x and v5.2.x**: Both use the Activities collection as the primary feature storage
+- **Phase 2 Discovery**: Must iterate `item.system.activities` Collection to access features, not query at item level
+- **Stable since**: v5.1.x (no expected breaking changes in querying approach)
+- Safe pattern: `for (const activity of item.system.activities)` then check `activity.activation.type`
 
 **Key Breaking Changes in v5.2.0:**
 1. **Calendar Integration** - New calendar API integration (not relevant for Turn Prep)
-2. **Activity & Effect Visibility** - Activities can now be hidden by level/criteria (may affect future feature selection)
+2. **Activity & Effect Visibility** - Activities can now be hidden by level/criteria (will affect Phase 3+ feature filtering)
 3. **ApplicationV2 Conversion** - Vehicle sheets converted (doesn't affect character/item sheets we care about)
 4. **Vehicle Data Restructuring** - Major changes to vehicle system (doesn't affect character items/features)
 
 **Compatibility Recommendation:**
 - Target D&D 5e v5.1.x or v5.2.x (both with Foundry V13+)
 - Do NOT attempt to support earlier v5.0.x versions
-- Item activation data structure is stable across 5.x
+- Activities collection querying is stable across 5.x
+- All future phases should iterate activities, not query item.system.activation directly
 - No data migration needed for features/items/spells we care about
 
 ---

@@ -15,6 +15,11 @@ import { MODULE_ID, SETTINGS, LOG_PREFIX, CUSTOM_HOOKS } from '../constants';
 import { FoundryAdapter } from '../foundry/FoundryAdapter';
 import { info, warn, error, logSection, setDebugMode } from '../utils/logging';
 import { TurnPrepApi } from '../api/TurnPrepApi';
+import { TurnPrepStorage } from '../features/data/TurnPrepStorage';
+import { FeatureSelector } from '../features/feature-selection/FeatureSelector';
+import { FeatureFilter } from '../features/feature-selection/FeatureFilter';
+import { createDMQuestion, createTurnPlan, createEmptyTurnPrepData, createTurnSnapshot, snapshotFeature, generateId } from '../utils/data';
+import { validateAndCorrectTurnPrepData } from '../features/data/TurnPrepData';
 
 // ============================================================================
 // Initialization
@@ -202,7 +207,23 @@ function setupPublicAPI(): void {
   // Also expose on globalThis for console access
   (globalThis as any).TurnPrepAPI = api;
 
+  // Expose Phase 2 utilities directly for testing in console
+  // This allows: TurnPrepStorage.load(actor), FeatureSelector.getAllSelectableFeatures(actor), etc.
+  (globalThis as any).TurnPrepStorage = TurnPrepStorage;
+  (globalThis as any).FeatureSelector = FeatureSelector;
+  (globalThis as any).FeatureFilter = FeatureFilter;
+  
+  // Also expose commonly used data utilities
+  (globalThis as any).createDMQuestion = createDMQuestion;
+  (globalThis as any).createTurnPlan = createTurnPlan;
+  (globalThis as any).createEmptyTurnPrepData = createEmptyTurnPrepData;
+  (globalThis as any).createTurnSnapshot = createTurnSnapshot;
+  (globalThis as any).snapshotFeature = snapshotFeature;
+  (globalThis as any).validateAndCorrectTurnPrepData = validateAndCorrectTurnPrepData;
+  (globalThis as any).generateId = generateId;
+
   info('Public API initialized and available as window.TurnPrepAPI');
+  info('Phase 2 utilities available: TurnPrepStorage, FeatureSelector, FeatureFilter');
 }
 
 // ============================================================================

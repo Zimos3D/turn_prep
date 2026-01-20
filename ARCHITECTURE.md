@@ -282,16 +282,33 @@ Integrates with Foundry's right-click context menu.
 - Calls appropriate handlers based on item type
 
 ### 10. **src/features/feature-selection/FeatureSelector.ts** (Feature Query)
-Queries and filters the character's items/features.
+Queries the character's items and activities to find features by action cost.
+
+**Critical Implementation Detail (Phase 2 Discovery):**
+The D&D 5e system stores feature activation costs in an **Activities Collection** on each item, not at the item level. Must iterate `item.system.activities` and check each activity's `activation.type`.
+
 ```typescript
-// Get all spells of action type
-getFeaturesByActionType(actor, 'action')
+// CORRECT approach: iterate activities collection
+for (const item of actor.items) {
+  for (const activity of item.system.activities) {
+    if (activity.activation?.type === 'action') {
+      // Found action cost feature
+      features.push({ itemId: item.id, itemName: item.name, actionType: 'action' });
+    }
+  }
+}
+
+// Get all action features
+getFeaturesByActivationType(actor, 'action')
 
 // Get all bonus action features
-getFeaturesByActionType(actor, 'bonus-action')
+getFeaturesByActivationType(actor, 'bonus')
 
-// Get all items of any kind (for additional features)
-getAllSelectableFeatures(actor)
+// Get all reaction features
+getFeaturesByActivationType(actor, 'reaction')
+
+// Get ALL features regardless of action cost
+getAllAvailableFeatures(actor)
 ```
 
 ### 11. **src/hooks/init.ts** & **src/hooks/ready.ts** (Hook Handlers)
