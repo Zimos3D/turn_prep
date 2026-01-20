@@ -16,6 +16,7 @@
 import { MODULE_ID, TAB_ID_MAIN, SETTINGS } from '../constants';
 import { FoundryAdapter } from '../foundry/FoundryAdapter';
 import { info, warn, error, logSection, notifyWarning } from '../utils/logging';
+import { TurnPrepApiInstance } from '../api/TurnPrepApi';
 
 // ============================================================================
 // Ready Hook Initialization
@@ -43,8 +44,13 @@ export async function readyModule(): Promise<void> {
     // Perform data validation
     validateModuleData();
 
+    // Expose API to global scope for external modules and console access
+    (window as any).TurnPrepAPI = TurnPrepApiInstance;
+    (game as any).TurnPrepAPI = TurnPrepApiInstance;
+
     // Log completion
     info('Module ready and initialized');
+    info('API exposed as game.TurnPrepAPI and window.TurnPrepAPI');
   } catch (err) {
     error('Failed to complete module ready initialization', err as Error);
     notifyWarning('Turn Prep: Initialization failed. Check console for details.');

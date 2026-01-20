@@ -1,103 +1,47 @@
 /**
  * Turn Prep Module - Settings System
  * 
- * Defines and registers all module settings for world configuration and per-character customization.
+ * Provides access to module settings registered in init.ts
  * Settings include history management, edit history, and feature tracking configuration.
  */
 
-import { TURN_PREP_CONSTANTS } from '../constants';
+import { SETTINGS } from '../constants';
 import { FoundryAdapter } from '../foundry/FoundryAdapter';
 import { debug, warn } from '../utils/logging';
 
 /**
- * World-level settings (configurable by GMs)
+ * Setting keys used throughout the module
+ * These are registered in src/hooks/init.ts
  */
-export const WORLD_SETTINGS = {
-  HISTORY_LIMIT_DEFAULT: 'historyLimitDefault',
-  EDIT_HISTORY_CHECKPOINTS: 'editHistoryCheckpoints',
-  ALLOW_PLAYER_EDIT_HISTORY: 'allowPlayerEditHistory',
-  ENABLE_TURN_PREP_TAB: 'enableTurnPrepTab',
+export const SETTING_KEYS = {
+  HISTORY_LIMIT: 'historyLimit',  // World setting: default history limit
+  EDIT_HISTORY_CHECKPOINTS: 'editHistoryCheckpoints',  // World setting: checkpoint limit
+  ALLOW_PLAYER_EDIT_HISTORY: 'allowPlayerEditHistory',  // World setting: player edit permission
 } as const;
 
 /**
- * Per-actor settings (stored in actor flags, overridable per character)
+ * Per-actor flag settings (stored in actor flags, not world settings)
  */
-export const ACTOR_SETTINGS = {
-  HISTORY_LIMIT: 'historyLimit',
-  EDIT_HISTORY_ENABLED: 'editHistoryEnabled',
+export const ACTOR_FLAG_KEYS = {
+  HISTORY_LIMIT: 'historyLimit',  // Per-actor override of history limit
+  EDIT_HISTORY_ENABLED: 'editHistoryEnabled',  // Per-actor edit history enabled
 } as const;
-
-/**
- * Register all module settings with Foundry
- * Called during init hook
- */
-export function registerSettings(): void {
-  debug('Registering Turn Prep settings');
-
-  // World Settings
-  FoundryAdapter.registerWorldSetting({
-    name: WORLD_SETTINGS.HISTORY_LIMIT_DEFAULT,
-    scope: 'world',
-    config: true,
-    type: Number,
-    default: 10,
-    range: {
-      min: 1,
-      max: 100,
-      step: 1,
-    },
-    hint: 'Default number of turn history entries to keep per character (can be overridden per actor)',
-  });
-
-  FoundryAdapter.registerWorldSetting({
-    name: WORLD_SETTINGS.EDIT_HISTORY_CHECKPOINTS,
-    scope: 'world',
-    config: true,
-    type: Number,
-    default: 5,
-    range: {
-      min: 1,
-      max: 20,
-      step: 1,
-    },
-    hint: 'Maximum number of edit history checkpoints to store per history snapshot',
-  });
-
-  FoundryAdapter.registerWorldSetting({
-    name: WORLD_SETTINGS.ALLOW_PLAYER_EDIT_HISTORY,
-    scope: 'world',
-    config: true,
-    type: Boolean,
-    default: true,
-    hint: 'Allow players to edit history snapshots after they are created',
-  });
-
-  FoundryAdapter.registerWorldSetting({
-    name: WORLD_SETTINGS.ENABLE_TURN_PREP_TAB,
-    scope: 'world',
-    config: true,
-    type: Boolean,
-    default: true,
-    hint: 'Enable the Turn Prep tab on character sheets (applies to all sheets)',
-  });
-
-  debug('Settings registered successfully');
-}
 
 /**
  * Get the default history limit from world settings
  */
 export function getDefaultHistoryLimit(): number {
   try {
-    const limit = FoundryAdapter.getWorldSetting(WORLD_SETTINGS.HISTORY_LIMIT_DEFAULT);
+    // Try the existing setting from constants
+    const limit = FoundryAdapter.getSetting(SETTING_KEYS.HISTORY_LIMIT);
     if (typeof limit === 'number' && limit > 0) {
       return limit;
     }
-    warn('Invalid history limit setting, falling back to default', { limit });
-    return 10;
+    // Fall back to constant default
+    return SETTINGS.HISTORY_LIMIT.default;
   } catch (error) {
     warn('Error retrieving history limit setting', { error });
-    return 10;
+    return SETTINGS.HISTORY_LIMIT.default;
   }
 }
 
@@ -106,7 +50,7 @@ export function getDefaultHistoryLimit(): number {
  */
 export function getEditHistoryCheckpointLimit(): number {
   try {
-    const limit = FoundryAdapter.getWorldSetting(WORLD_SETTINGS.EDIT_HISTORY_CHECKPOINTS);
+    const limit = FoundryAdapter.getSetting(SETTING_KEYS.EDIT_HISTORY_CHECKPOINTS);
     if (typeof limit === 'number' && limit > 0) {
       return limit;
     }
@@ -123,7 +67,7 @@ export function getEditHistoryCheckpointLimit(): number {
  */
 export function canPlayersEditHistory(): boolean {
   try {
-    const allowed = FoundryAdapter.getWorldSetting(WORLD_SETTINGS.ALLOW_PLAYER_EDIT_HISTORY);
+    const allowed = FoundryAdapter.getSetting(SETTING_KEYS.ALLOW_PLAYER_EDIT_HISTORY);
     return typeof allowed === 'boolean' ? allowed : true;
   } catch (error) {
     warn('Error retrieving player edit history setting', { error });
@@ -136,8 +80,8 @@ export function canPlayersEditHistory(): boolean {
  */
 export function isTurnPrepTabEnabled(): boolean {
   try {
-    const enabled = FoundryAdapter.getWorldSetting(WORLD_SETTINGS.ENABLE_TURN_PREP_TAB);
-    return typeof enabled === 'boolean' ? enabled : true;
+    // This setting might not be registered, so return true as default
+    return true;
   } catch (error) {
     warn('Error retrieving Turn Prep tab enabled setting', { error });
     return true;
@@ -148,15 +92,15 @@ export function isTurnPrepTabEnabled(): boolean {
  * Get the effective history limit for a specific actor
  * First checks for per-actor override, falls back to world default
  */
-export function getHistoryLimitForActor(actor: Actor): number {
-  if (!actor) {
+export function getHistoryLimitForActor(actor: any): number {
+  if (!actor || !actor.id) {
     debug('Actor not provided, using default history limit');
     return getDefaultHistoryLimit();
   }
 
   try {
     // Check for per-actor override in flags
-    const actorLimit = FoundryAdapter.getFlag(actor, ACTOR_SETTINGS.HISTORY_LIMIT);
+    const actorLimit = FoundryAdapter.getFlag(actor, ACTOR_FLAG_KEYS.HISTORY_LIMIT);
     
     if (typeof actorLimit === 'number' && actorLimit > 0) {
       debug('Using per-actor history limit', { actorId: actor.id, limit: actorLimit });
@@ -176,9 +120,9 @@ export function getHistoryLimitForActor(actor: Actor): number {
 /**
  * Set a per-actor history limit override
  */
-export async function setHistoryLimitForActor(actor: Actor, limit: number): Promise<void> {
-  if (!actor) {
-    throw new Error('Actor required to set history limit');
+export async function setHistoryLimitForActor(actor: any, limit: number): Promise<void> {
+  if (!actor || !actor.id) {
+    throw new Error('Actor with valid ID required to set history limit');
   }
 
   if (!Number.isInteger(limit) || limit < 1) {
@@ -186,7 +130,7 @@ export async function setHistoryLimitForActor(actor: Actor, limit: number): Prom
   }
 
   try {
-    await FoundryAdapter.setFlag(actor, ACTOR_SETTINGS.HISTORY_LIMIT, limit);
+    await FoundryAdapter.setFlag(actor, ACTOR_FLAG_KEYS.HISTORY_LIMIT, limit);
     debug('Set history limit for actor', { actorId: actor.id, limit });
   } catch (error) {
     warn('Error setting history limit for actor', { actorId: actor.id, limit, error });
@@ -197,13 +141,13 @@ export async function setHistoryLimitForActor(actor: Actor, limit: number): Prom
 /**
  * Clear per-actor history limit override (reverts to world default)
  */
-export async function clearHistoryLimitOverride(actor: Actor): Promise<void> {
-  if (!actor) {
-    throw new Error('Actor required to clear history limit override');
+export async function clearHistoryLimitOverride(actor: any): Promise<void> {
+  if (!actor || !actor.id) {
+    throw new Error('Actor with valid ID required to clear history limit override');
   }
 
   try {
-    await FoundryAdapter.deleteFlag(actor, ACTOR_SETTINGS.HISTORY_LIMIT);
+    await FoundryAdapter.deleteFlag(actor, ACTOR_FLAG_KEYS.HISTORY_LIMIT);
     debug('Cleared history limit override for actor', { actorId: actor.id });
   } catch (error) {
     warn('Error clearing history limit override', { actorId: actor.id, error });
@@ -215,14 +159,14 @@ export async function clearHistoryLimitOverride(actor: Actor): Promise<void> {
  * Check if edit history is enabled for a specific actor
  * (Future use: could make this per-actor, currently uses global setting)
  */
-export function isEditHistoryEnabledForActor(actor: Actor): boolean {
+export function isEditHistoryEnabledForActor(actor: any): boolean {
   if (!actor) {
     return canPlayersEditHistory();
   }
 
   try {
     // Per-actor override (if implemented in future)
-    const actorSetting = FoundryAdapter.getFlag(actor, ACTOR_SETTINGS.EDIT_HISTORY_ENABLED);
+    const actorSetting = FoundryAdapter.getFlag(actor, ACTOR_FLAG_KEYS.EDIT_HISTORY_ENABLED);
     if (typeof actorSetting === 'boolean') {
       return actorSetting;
     }

@@ -18,7 +18,7 @@
 
 import { info, debug, warn } from '../../utils/logging';
 import { FoundryAdapter } from '../../foundry/FoundryAdapter';
-import { TURN_PREP_CONSTANTS } from '../../constants';
+import { FLAG_SCOPE } from '../../constants';
 import type {
   TurnPlan,
   TurnSnapshot,
@@ -185,11 +185,11 @@ export class RollHandler {
    * Show end-of-turn dialog
    * Allows actor to select which turn plan to use or view history
    */
-  private static async showEndOfTurnDialog(actor: Actor): Promise<void> {
+  static async showEndOfTurnDialog(actor: Actor): Promise<void> {
     try {
       // Get history from actor flags
       const history = actor.getFlag(
-        TURN_PREP_CONSTANTS.MODULE_NAME,
+        FLAG_SCOPE,
         'history'
       ) as TurnHistorySnapshot[] | undefined;
 
@@ -207,7 +207,7 @@ export class RollHandler {
 
         if (proceed) {
           await actor.setFlag(
-            TURN_PREP_CONSTANTS.MODULE_NAME,
+            FLAG_SCOPE,
             'currentTurnPlan',
             history[0]
           );
@@ -247,7 +247,7 @@ export class RollHandler {
                 );
                 const selectedPlan = history[selectedIndex];
                 await actor.setFlag(
-                  TURN_PREP_CONSTANTS.MODULE_NAME,
+                  FLAG_SCOPE,
                   'currentTurnPlan',
                   selectedPlan
                 );
@@ -426,7 +426,7 @@ export class RollHandler {
 
       // Get existing edit history
       const editHistory = actor.getFlag(
-        TURN_PREP_CONSTANTS.MODULE_NAME,
+        FLAG_SCOPE,
         `editHistory_${plan.name}`
       ) as EditCheckpoint[] | undefined;
 
@@ -491,7 +491,7 @@ export class RollHandler {
 
       // Get existing checkpoints
       let checkpoints = (actor.getFlag(
-        TURN_PREP_CONSTANTS.MODULE_NAME,
+        FLAG_SCOPE,
         `editHistory_${plan.name}`
       ) as EditCheckpoint[] | undefined) || [];
 
@@ -512,7 +512,7 @@ export class RollHandler {
 
       // Save checkpoints
       await actor.setFlag(
-        TURN_PREP_CONSTANTS.MODULE_NAME,
+        FLAG_SCOPE,
         `editHistory_${plan.name}`,
         checkpoints
       );
@@ -533,7 +533,7 @@ export class RollHandler {
   ): Promise<TurnPlan | null> {
     try {
       const checkpoints = actor.getFlag(
-        TURN_PREP_CONSTANTS.MODULE_NAME,
+        FLAG_SCOPE,
         `editHistory_${planName}`
       ) as EditCheckpoint[] | undefined;
 
@@ -543,7 +543,7 @@ export class RollHandler {
       if (!checkpoint) return null;
 
       const restoredPlan = checkpoint.snapshot;
-      await actor.setFlag(TURN_PREP_CONSTANTS.MODULE_NAME, 'currentTurnPlan', restoredPlan);
+      await actor.setFlag(FLAG_SCOPE, 'currentTurnPlan', restoredPlan);
 
       ui.notifications?.info(`Restored turn plan to: ${checkpoint.description}`);
       return restoredPlan;
@@ -597,7 +597,7 @@ export class RollHandler {
 
     if (removed > 0) {
       debug(`Removed ${removed} missing features from turn plan`);
-      await actor.setFlag(TURN_PREP_CONSTANTS.MODULE_NAME, 'currentTurnPlan', cleaned);
+      await actor.setFlag(FLAG_SCOPE, 'currentTurnPlan', cleaned);
     }
 
     return cleaned;

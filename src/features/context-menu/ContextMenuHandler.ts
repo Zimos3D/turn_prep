@@ -104,37 +104,162 @@ export class ContextMenuHandler {
 
   /**
    * Register "Add to Turn Prep" option on items in actor sheets
+   * Works with both Tidy5e and default sheets
    */
   private static registerItemContextMenu(): void {
+    debug('Registering item context menu handlers');
+
+    // Register the standard dnd5e hook
+    // This is used by Tidy5e and the default D&D 5e system sheets
+    const hookCallback = (item: Item, menuItems: any[]) => {
+      console.log(`[TURN-PREP] Hook callback executing for: ${item?.name ?? 'unknown'}`);
+      
+      try {
+        // Simple validation
+        if (!item) {
+          console.log('[TURN-PREP] No item provided');
+          return;
+        }
+
+        console.log(`[TURN-PREP] Processing item: ${item.name}`);
+        
+        // Get activities
+        let activities: any[] = [];
+        try {
+          activities = FeatureSelector.getActivitiesForItem(item);
+          console.log(`[TURN-PREP] Found ${activities.length} activities`);
+        } catch (actErr) {
+          console.error('[TURN-PREP] Error getting activities:', actErr);
+          return;
+        }
+
+        if (activities.length === 0) {
+          console.log('[TURN-PREP] No activities, skipping');
+          return;
+        }
+
+        // Get actor
+        const actor = item.actor;
+        if (!actor) {
+          console.log('[TURN-PREP] No actor, skipping');
+          return;
+        }
+
+        console.log(`[TURN-PREP] Creating menu item for ${item.name} with ${activities.length} activities`);
+
+        // Create the menu item
+        const menuItem = {
+          name: 'Add to Turn Prep',
+          icon: '<i class="fas fa-plus"></i>',
+          group: 'customize',
+          callback: async (li?: HTMLElement) => {
+            try {
+              console.log('[TURN-PREP] Menu item clicked');
+              await ContextMenuHandler.handleAddToTurnPrep(actor, item, activities);
+            } catch (cbErr) {
+              console.error('[TURN-PREP] Error in callback:', cbErr);
+            }
+          },
+        };
+
+        // Add to array
+        menuItems.push(menuItem);
+        console.log(`[TURN-PREP] Menu item added. Array now has ${menuItems.length} items`);
+
+      } catch (err) {
+        console.error('[TURN-PREP] EXCEPTION in hook callback:', err);
+        console.error(err);
+      }
+    };
+
+    // Register the hook
+    console.log('[TURN-PREP] Registering dnd5e.getItemContextOptions hook');
+    Hooks.on('dnd5e.getItemContextOptions', hookCallback);
+    console.log('[TURN-PREP] Hook registered');
+
+    // Fallback hook: Standard Foundry sheets that don't use dnd5e.getItemContextOptions
     Hooks.on('getActorSheetContextMenuItems', (html: HTMLElement, menuItems: ContextMenuItem[]) => {
-      // Check if we have a valid item in the context menu
-      const itemElement = html.closest('[data-item-id]');
-      if (!itemElement) return;
-
-      const itemId = itemElement.getAttribute('data-item-id');
-      if (!itemId) return;
-
-      // Get the actor from the sheet
-      const sheet = Object.values(ui.windows).find((w: any) => w.element?.find(html).length) as any;
-      if (!sheet?.object) return;
-
-      const actor = sheet.object;
-      const item = actor.items.get(itemId);
-      if (!item) return;
-
-      // Get activities from the item
-      const activities = FeatureSelector.getActivitiesForItem(item);
-      if (activities.length === 0) return; // No activities, don't add menu item
-
-      // Add "Add to Turn Prep" menu option
-      menuItems.push({
-        name: 'Add to Turn Prep',
-        icon: '<i class="fas fa-plus"></i>',
-        callback: async (li: HTMLElement) => {
-          await ContextMenuHandler.handleAddToTurnPrep(actor, item, activities);
-        },
-      });
+      debug('getActorSheetContextMenuItems hook fired (fallback for non-Tidy5e sheets)');
+      ContextMenuHandler.addMenuItemsToList(html, menuItems);
     });
+  }
+
+  /**
+   * Add menu items to a context menu list
+   */
+  private static addMenuItemsToList(html: HTMLElement, menuItems: ContextMenuItem[]): void {
+    // Check if we have a valid item in the context menu
+    const itemElement = html.closest('[data-item-id]');
+    if (!itemElement) {
+      debug('No item element found in context menu');
+      return;
+    }
+
+    const itemId = itemElement.getAttribute('data-item-id');
+    if (!itemId) {
+      debug('No item ID found');
+      return;
+    }
+
+    debug(`Found item element with ID: ${itemId}`);
+
+    // Get the actor from the sheet
+    // Try multiple methods to find the sheet
+    let sheet: any = null;
+    
+    // Method 1: Look through open windows
+    for (const w of Object.values(ui.windows)) {
+      const window = w as any;
+      if (window.element && window.object && window.object.items && window.object.items.get(itemId)) {
+        sheet = window;
+        break;
+      }
+    }
+
+    // Method 2: If first method failed, try finding by closest sheet element
+    if (!sheet) {
+      const sheetElement = $(html).closest('.sheet');
+      if (sheetElement.length > 0) {
+        const sheetApp = sheetElement.data('app');
+        if (sheetApp && sheetApp.object) {
+          sheet = sheetApp;
+        }
+      }
+    }
+
+    if (!sheet?.object) {
+      debug('Could not find sheet or actor');
+      return;
+    }
+
+    const actor = sheet.object;
+    const item = actor.items.get(itemId);
+    if (!item) {
+      debug(`Item ${itemId} not found on actor ${actor.name}`);
+      return;
+    }
+
+    debug(`Found item: ${item.name} on actor: ${actor.name}`);
+
+    // Get activities from the item
+    const activities = FeatureSelector.getActivitiesForItem(item);
+    if (activities.length === 0) {
+      debug(`No activities found for item ${item.name}`);
+      return; // No activities, don't add menu item
+    }
+
+    debug(`Found ${activities.length} activities for ${item.name}`);
+
+    // Add "Add to Turn Prep" menu option
+    menuItems.push({
+      name: 'Add to Turn Prep',
+      icon: '<i class="fas fa-plus"></i>',
+      callback: async (li: HTMLElement) => {
+        await ContextMenuHandler.handleAddToTurnPrep(actor, item, activities);
+      },
+    });
+
+    info(`Added "Add to Turn Prep" menu item for ${item.name}`);
   }
 
   /**
