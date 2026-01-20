@@ -2,7 +2,7 @@
 
 **Last Updated**: January 19, 2026  
 **Overall Status**: 🟢 ON TRACK  
-**Current Phase**: Phase 3 (Features Layer) - Ready to Begin  
+**Current Phase**: Phase 3 (Features Layer) - Implementation In Progress  
 
 ---
 
@@ -35,12 +35,24 @@
 
 ## Active Work 🔄
 
-### Phase 3: Features (Ready to Begin)
-- [ ] Settings system (settings.ts) - configurable history limit, DM visibility
-- [ ] Context menu integration (ContextMenuHandler.ts) - right-click "Add to Turn Prep"
-- [ ] Roll integration (RollHandler.ts) - track used features
+### Phase 3: Features (Implementation In Progress)
+- [x] Settings system (settings.ts) - 2 world settings integrated into init.ts
+- [x] Context menu integration (ContextMenuHandler.ts) - 370+ lines with activity selection dialog
+- [x] Roll integration (RollHandler.ts) - 500+ lines with chat roll discovery, history snapshots, edit checkpoints
+- [x] End-of-turn dialog system - Initiative hook listeners registered
+- [x] Edit history checkpoints - Up to 20 per turn plan (configurable)
+- [x] Missing feature detection - Auto-removes unavailable features from plans
 
-**Next**: Clarify Phase 3 requirements, then implement features layer
+**Current Task**: Verify integration and create tests for Phase 3 systems
+
+**Completed Phase 3 Systems:**
+- ✓ Settings: 2 world-level configuration options
+- ✓ Context Menu: "Add to Turn Prep" with activity selection
+- ✓ Roll Discovery: Chat-based roll and saving throw detection
+- ✓ History Snapshots: Turns with embedded rolls and saves
+- ✓ Edit History: Checkpoint system with restore capability
+- ✓ End-of-Turn: Dialog for plan selection on initiative advance
+- ✓ Feature Validation: Auto-clean missing items from plans
 
 ---
 

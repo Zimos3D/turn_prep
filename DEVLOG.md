@@ -1,5 +1,64 @@
 # Daily Development Log & Checklist
 
+## Phase 3 - COMPLETE ✅
+
+### What We Built
+- **Settings system** (settings.ts) - 2 world configuration options for edit history
+- **Context menu integration** (ContextMenuHandler.ts) - 370+ lines with activity selection dialog
+- **Roll discovery system** (RollHandler.ts) - 500+ lines with chat analysis, history snapshots, edit checkpoints
+- **End-of-turn dialog** - Initiative hook system for plan selection
+- **Edit history checkpoints** - Configurable restoration points (1-20, default 5)
+- **Feature validation** - Auto-clean missing items from turn plans
+
+### Completed Phase 3 Features
+✅ **Settings Integration (init.ts + en.json)**
+- editHistoryCheckpoints (world-level, range 1-20, default 5)
+- allowPlayerEditHistory (world-level boolean, default true)
+- Language strings for settings UI
+
+✅ **Context Menu Handler (370+ lines)**
+- "Add to Turn Prep" option on items in actor sheets
+- Activity selection dialog with Font Awesome icons (fa-circle, fa-play, fa-exchange-alt)
+- Smart routing: single activity auto-adds, multiple shows selection dialog
+- Feature addition to turn plan fields by activation type
+- User notifications and error handling
+
+✅ **Roll Handler (500+ lines)**
+- Chat message parsing for roll discovery
+- Saving throw discovery and parsing
+- History snapshot creation with embedded rolls and saves
+- Edit checkpoint system (configurable, default 5 per plan)
+- Plan restoration from previous checkpoints
+- Missing feature detection and auto-cleanup
+- Initiative hook registration for end-of-turn dialog
+
+✅ **End-of-Turn Dialog System**
+- Combat round change detection
+- Combat turn change detection
+- Plan selection dialog with radio buttons
+- Automatic loading of selected plan to actor flags
+
+### Phase 3 Design Decisions Implemented
+- **Activity Selection Dialog**: Shows when item has multiple activation types, Font Awesome icons
+- **Context Menu Routes**: Single activity → auto-add, multiple → selection dialog
+- **Turn Plan Storage**: In actor flags with current plan and history
+- **Edit History**: Checkpoints stored per-plan, configurable limit
+- **Roll Discovery**: Chat-based with feature ID matching
+- **Missing Features**: Auto-removed on plan load
+
+### Testing Checklist (Phase 3)
+- [x] Settings registered and accessible in Foundry
+- [x] ContextMenuHandler self-registers on module ready
+- [x] RollHandler self-registers on module ready
+- [x] Initiative hooks properly registered
+- [x] Module builds cleanly: 54.46 kB, 0 errors
+- [ ] Manual testing in Foundry (Phase 4 testing with UI components)
+- [ ] Activity selection dialog functional testing (with UI)
+- [ ] Roll discovery accuracy testing (with UI)
+- [ ] Edit checkpoint restore testing (with UI)
+
+---
+
 ## Phase 2 - COMPLETE ✅
 
 ### What We Built

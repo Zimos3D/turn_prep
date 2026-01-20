@@ -59,7 +59,11 @@
       "DebugMode": {
         "Name": "Debug Mode",
         "Hint": "Enable debug logging in browser console"
-      }
+      },
+      "EditHistoryCheckpoints": "Edit History Checkpoints",
+      "EditHistoryCheckpointsHint": "Maximum number of edit history checkpoints to save per turn plan (1-20, default: 5)",
+      "AllowPlayerEditHistory": "Allow Player Edit History",
+      "AllowPlayerEditHistoryHint": "Allow players to edit and restore previous versions of their turn plans"
     },
     "Messages": {
       "FeatureAdded": "Added {featureName} to turn plan",

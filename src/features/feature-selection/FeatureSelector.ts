@@ -370,6 +370,26 @@ export class FeatureSelector {
   }
 
   /**
+   * Get all activities from an item
+   * Used by context menu to determine if activity selection dialog is needed
+   * 
+   * @param item - The item to get activities from
+   * @returns Array of activities for the item
+   */
+  static getActivitiesForItem(item: any): any[] {
+    if (!item || !item.system?.activities) {
+      return [];
+    }
+
+    try {
+      return Array.from(item.system.activities);
+    } catch (err) {
+      warn(`FeatureSelector.getActivitiesForItem(): Error getting activities`, err as Error);
+      return [];
+    }
+  }
+
+  /**
    * Normalize activation type to standard values
    * Handles D&D 5e system variations
    * 

@@ -128,7 +128,39 @@ function registerModuleSettings(): void {
     },
   });
 
+  // Phase 3 Settings: Edit History Checkpoints
+  FoundryAdapter.registerSetting('editHistoryCheckpoints', {
+    name: 'TurnPrep.Settings.EditHistoryCheckpoints',
+    hint: 'TurnPrep.Settings.EditHistoryCheckpointsHint',
+    scope: 'world',
+    config: true,
+    type: Number,
+    default: 5,
+    range: {
+      min: 1,
+      max: 20,
+      step: 1,
+    },
+    onChange: (value) => {
+      info(`Edit history checkpoint limit changed to: ${value}`);
+    },
+  });
+
+  // Phase 3 Settings: Allow Player Edit History
+  FoundryAdapter.registerSetting('allowPlayerEditHistory', {
+    name: 'TurnPrep.Settings.AllowPlayerEditHistory',
+    hint: 'TurnPrep.Settings.AllowPlayerEditHistoryHint',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: true,
+    onChange: (value) => {
+      info(`Player edit history setting changed to: ${value}`);
+    },
+  });
+
   info('Settings registered');
+
 }
 
 // ============================================================================

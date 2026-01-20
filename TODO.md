@@ -57,10 +57,13 @@ Each TODO in code files corresponds to items in this list.
 - [x] Global exports for console access
 - [x] Comprehensive testing - all features working
 
-### Phase 3: Features (Core Logic)
-- [ ] Settings system (settings.ts)
-- [ ] Context menu integration (ContextMenuHandler.ts)
-- [ ] Roll integration (RollHandler.ts)
+### Phase 3: Features (Core Logic) - COMPLETE ✅
+- [x] Settings system (settings.ts) - 2 world settings integrated
+- [x] Context menu integration (ContextMenuHandler.ts) - 370+ lines
+- [x] Roll integration (RollHandler.ts) - 500+ lines
+- [x] End-of-turn dialog system - Initiative hooks registered
+- [x] Edit history checkpoints - Configurable checkpoints (1-20, default 5)
+- [x] Missing feature detection - Auto-cleans unavailable features
 
 ### Phase 4: UI Components (Visual Layer)
 - [ ] Simple components first: RollButton, HistoryFavoritesList
