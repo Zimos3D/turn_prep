@@ -1,20 +1,59 @@
 # Context Menu Troubleshooting Guide
 
 **Issue**: "Add to Turn Prep" menu item not appearing in Tidy5e context menus  
-**Updated**: January 20, 2026  
-**Build**: 81.21 kB
+**Status**: ✅ RESOLVED - January 20, 2026  
+**Build**: 94.36 kB
 
 ---
 
-## Recent Changes
+## ✅ SOLUTION FOUND
 
-### What Was Fixed
+### Root Cause
+The `ContextMenuHandler.registerContextMenus()` was never being called at module initialization. The class had a self-registration `Hooks.once('ready')` at the bottom of the file, but this code wasn't executing because:
+1. The file is imported as a class, not for side effects
+2. Module bundling may not execute bottom-level code in imported files
+3. The ready hook may fire before the import completes
+
+### The Fix
+**File**: `src/hooks/ready.ts`
+
+```typescript
+import { ContextMenuHandler } from '../features/context-menu/ContextMenuHandler';
+
+function registerHooks(): void {
+  info('Registering module hooks...');
+  
+  // Register context menu hooks - MUST be called explicitly!
+  try {
+    ContextMenuHandler.registerContextMenus();
+    info('✓ Context menu hooks registered');
+  } catch (err) {
+    error('Failed to register context menu hooks', err as Error);
+  }
+}
+```
+
+**File**: `src/features/context-menu/ContextMenuHandler.ts`
+
+Removed the self-registration code at the bottom:
+```typescript
+// REMOVED - Don't do this!
+// Hooks.once('ready', () => {
+//   ContextMenuHandler.registerContextMenus();
+// });
+```
+
+### Additional Fixes Applied
 1. **Enhanced logging** - More detailed console output for each step
 2. **Added icon with proper spacing** - Used `fa-fw` class for consistent width
 3. **Added condition function** - Ensures menu item only shows when activities exist
 4. **Added Tidy5e hook listener** - Now monitors `tidy5e-sheet.actorItemUseContextMenu`
 5. **Better error handling** - User-friendly notifications on errors
 6. **Actor detection** - Checks both `item.actor` and `item.parent`
+7. **Fixed generateId import** - Import from `utils/data.ts` not `FoundryAdapter`
+8. **Activity names in dialog** - Shows "Attack", "Grapple" instead of "Action", "Action"
+9. **Reactions storage** - Stored in `turnPrepData.reactions[]` not `currentTurnPlan.reactions[]`
+10. **Removed edit checkpoints** - Only for history snapshots, not current turn plan
 
 ### Hook Strategy
 The module now listens to **three hooks**:
@@ -234,11 +273,44 @@ Then reload the world. You'll see extensive logging from the module.
 
 ---
 
-## If Nothing Works
+## ✅ Verification
 
-If you've tried all the above and the context menu still doesn't work, it's likely that **Tidy5e uses a completely custom context menu system** that doesn't fire the standard hooks.
+After applying the fix, you should see during Foundry startup:
 
-### Alternative Approach: Use Tidy5e's Section Commands
+```
+[turn-prep] Registering module hooks...
+[TURN-PREP] registerContextMenus() called
+[TURN-PREP] registerItemContextMenu() called
+[TURN-PREP] Registering dnd5e.getItemContextOptions hook
+Foundry VTT | Registered callback for dnd5e.getItemContextOptions hook
+[TURN-PREP] dnd5e.getItemContextOptions hook registered successfully
+[turn-prep] ✓ Context menu hooks registered
+```
+
+When you right-click an item:
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║ [TURN-PREP CALLBACK] OUR HOOK CALLBACK IS RUNNING!           ║
+╚═══════════════════════════════════════════════════════════════╝
+[TURN-PREP] Item: Longsword | Type: weapon
+[TURN-PREP] Processing item: Longsword (type: weapon) on actor: CharacterName
+[TURN-PREP] Found 1 activities for Longsword
+[TURN-PREP] Creating menu item for Longsword with 1 activities
+[TURN-PREP] Menu item added successfully. Total menu items: 19
+```
+
+When you click "Add to Turn Prep":
+
+```
+Added Longsword to turn prep (action)
+```
+
+---
+
+## Alternative Approach: Use Tidy5e's Section Commands
+
+**Note**: This is no longer needed! The standard hook approach works. But for reference, Tidy5e also supports section commands:
 
 According to [TIDY5E_CONTEXT_MENU_RESEARCH.md](TIDY5E_CONTEXT_MENU_RESEARCH.md#L43-L66), Tidy5e has a different API for adding commands to item sections:
 

@@ -1,18 +1,29 @@
 # Phase 3 Quick Test Reference
 
 **Ready to test in Foundry!**  
-**Build**: ✅ 74.12 kB  
-**Status**: All Phase 3 systems implemented, settings keys aligned  
-**Latest Fix**: Fixed settings key mismatch (was looking for wrong setting names)
+**Build**: ✅ 94.36 kB  
+**Status**: Context menu integration WORKING! ✅  
+**Latest Update**: January 20, 2026 - Context menu successfully integrated with Tidy5e
 
 ---
 
-## Latest Fix Summary
+## Latest Updates
 
-Fixed `FoundryAdapter.getWorldSetting()` method calls - they should have been `getSetting()`.  
-Also improved actor parameter type checking to accept console-passed actor objects.
+### Context Menu Integration - WORKING! ✅
 
-See [PHASE3_SETTINGS_FIX.md](PHASE3_SETTINGS_FIX.md) for detailed fix information.
+**What was fixed:**
+1. ✅ Hook registration moved to `ready.ts` - `ContextMenuHandler.registerContextMenus()` now explicitly called
+2. ✅ `generateId` imported from `utils/data.ts` instead of non-existent `FoundryAdapter.generateId()`
+3. ✅ Activity names shown in selection dialog (e.g., "Attack", "Grapple", "Shove") instead of just "Action"
+4. ✅ Reactions now stored in `turnPrepData.reactions[]` instead of `currentTurnPlan.reactions[]`
+5. ✅ Edit checkpoints removed for current turn plan (only used for history snapshots)
+
+**Verified working:**
+- "Add to Turn Prep" appears in context menus for items with activities
+- Items are successfully added to actor flags
+- Activity selection dialog shows correct names
+- No errors when adding features
+- Data persists correctly
 
 ---
 
@@ -91,20 +102,34 @@ TurnPrepAPI.settings.getHistoryLimitForActor(actor)
 
 ---
 
-## Test 2: Context Menu (5 min)
+## Test 2: Context Menu (5 min) ✅ VERIFIED WORKING
 
 ```javascript
 // Manually try:
-// 1. Right-click an item in character sheet
-// 2. Look for "Add to Turn Prep" option
+// 1. Right-click an item in character sheet (weapon, spell, or feature)
+// 2. Look for "Add to Turn Prep" option in the "Customize" group
 // 3. Click it
-// 4. Check console for success message
+// 4. If item has multiple activities, choose from dialog
+// 5. Check console for success message
+
+// Verify the data was saved:
+const actor = game.actors.getName('Frodo');
+const currentPlan = actor.getFlag('turn-prep', 'currentTurnPlan');
+console.log('Actions:', currentPlan.actions);
+console.log('Bonus Actions:', currentPlan.bonusActions);
+
+// Check reactions (stored separately):
+const turnPrepData = actor.getFlag('turn-prep', 'turnPrepData');
+console.log('Reactions:', turnPrepData.reactions);
 ```
 
-**Expected Results**:
-- ✅ Menu item appears on items
-- ✅ Features add to turn plan
-- ✅ Features appear in actor flags
+**Expected Results**: ✅ ALL VERIFIED
+- ✅ Menu item appears on items with activities
+- ✅ Features add to turn plan (actions/bonus actions)
+- ✅ Reactions stored in separate reactions array
+- ✅ Features appear in actor flags with correct structure
+- ✅ Activity selection dialog shows activity names (not just "Action")
+- ✅ No console errors during addition
 
 ---
 
@@ -202,9 +227,39 @@ if (a) console.log(a.name, 'Plan:', p, 'History:', h, 'Checkpoints:', c)
 
 ---
 
+## Context Menu Integration Findings
+
+### Key Learnings (January 20, 2026)
+
+1. **Hook Registration**: The `dnd5e.getItemContextOptions` hook works perfectly with Tidy5e, but MUST be registered explicitly from `ready.ts`. Self-registration at the bottom of a file doesn't work reliably.
+
+2. **Menu Item Structure**:
+   ```javascript
+   {
+     name: 'Add to Turn Prep',
+     icon: '<i class="fas fa-plus fa-fw"></i>',
+     group: 'customize', // Tidy5e group ID
+     condition: () => activities.length > 0,
+     callback: async (li) => { /* handler */ }
+   }
+   ```
+
+3. **Activity Names**: Use `activity.name` for dialog labels, not `activation.type` labels. This shows "Attack", "Grapple", "Shove" instead of "Action", "Action", "Action".
+
+4. **Reactions Storage**: Reactions are NOT part of the current turn plan. They're stored in the root `turnPrepData.reactions[]` array because they're persistent across turns.
+
+5. **Edit Checkpoints**: Only create checkpoints for history snapshots, not for current turn plan modifications. The current plan is a working space.
+
+### Files Modified
+- `src/hooks/ready.ts` - Added explicit `ContextMenuHandler.registerContextMenus()` call
+- `src/features/context-menu/ContextMenuHandler.ts` - Fixed imports, activity labels, reactions storage
+- `src/features/roll-integration/RollHandler.ts` - Removed checkpoint creation for current plan
+
+---
+
 ## Known Issues
 
-See [PHASE3_SETTINGS_FIX.md](PHASE3_SETTINGS_FIX.md) for recently fixed issues.
+No known issues! Context menu integration is fully functional.
 
 ---
 

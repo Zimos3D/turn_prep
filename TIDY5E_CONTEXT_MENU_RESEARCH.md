@@ -417,6 +417,7 @@ Hooks.once('tidy5e-sheet.ready', (api: any) => {
 Use standard `dnd5e.getItemContextOptions` hook with `group` property:
 - Works for both Classic and Quadrone layouts
 - Always use valid group IDs: `common`, `customize`, `sections`, `pins`, `be-careful`
+- **CRITICAL**: Must be registered explicitly in module's ready hook, not self-registered
 
 ### For Section Commands (Item List Headers/Footers):
 Use `api.config.actorItem.registerSectionCommands()`:
@@ -429,6 +430,108 @@ Use `api.config.actorItem.registerSectionCommands()`:
 - Section commands are **different** from context menu items
 - Always check `item.isOwner` for permission-sensitive actions
 - Use localization keys for text (e.g., `'DND5E.Delete'` instead of raw strings)
+
+---
+
+## 10. Verified Implementation (January 20, 2026)
+
+### Working Implementation in Turn Prep Module
+
+**Hook Registration Pattern**:
+```typescript
+// In src/hooks/ready.ts
+import { ContextMenuHandler } from '../features/context-menu/ContextMenuHandler';
+
+function registerHooks(): void {
+  info('Registering module hooks...');
+  
+  // Register context menu hooks
+  try {
+    ContextMenuHandler.registerContextMenus();
+    info('✓ Context menu hooks registered');
+  } catch (err) {
+    error('Failed to register context menu hooks', err as Error);
+  }
+}
+```
+
+**Menu Item Structure**:
+```typescript
+Hooks.on('dnd5e.getItemContextOptions', (item: any, menuItems: any[]) => {
+  const actor = item.actor || item.parent;
+  if (!actor) return;
+  
+  const activities = FeatureSelector.getActivitiesForItem(item);
+  if (activities.length === 0) return;
+  
+  menuItems.push({
+    name: 'Add to Turn Prep',
+    icon: '<i class="fas fa-plus fa-fw"></i>',
+    group: 'customize',
+    condition: () => activities.length > 0,
+    callback: async (li?: HTMLElement) => {
+      await handleAddToTurnPrep(actor, item, activities);
+    },
+  });
+});
+```
+
+**Activity Selection Dialog**:
+```typescript
+// Use activity.name for labels, not activation type
+const options = activities.map((activity) => ({
+  activity,
+  activationType: activity.activation.type,
+  displayLabel: activity.name || ACTIVATION_LABELS[activity.activation.type],
+  icon: ACTIVATION_ICONS[activity.activation.type] || 'fa-star',
+}));
+```
+
+### Verified Behaviors
+
+1. ✅ Hook fires when right-clicking items in Tidy5e character sheets
+2. ✅ Menu item appears in the "Customize" group
+3. ✅ Dialog shows activity names ("Attack", "Grapple", "Shove") not just activation types
+4. ✅ Items are correctly stored in actor flags
+5. ✅ No errors during addition or save operations
+6. ✅ Works for weapons, spells, features, and consumables
+
+### Common Pitfalls Avoided
+
+❌ **Don't**: Self-register hooks at the bottom of a class file
+```typescript
+// At bottom of ContextMenuHandler.ts - DON'T DO THIS
+Hooks.once('ready', () => {
+  ContextMenuHandler.registerContextMenus();
+});
+```
+
+✅ **Do**: Explicitly call from ready.ts
+```typescript
+// In src/hooks/ready.ts - DO THIS
+ContextMenuHandler.registerContextMenus();
+```
+
+❌ **Don't**: Use non-existent utility functions
+```typescript
+id: FoundryAdapter.generateId() // Doesn't exist!
+```
+
+✅ **Do**: Import from correct location
+```typescript
+import { generateId } from '../../utils/data';
+id: generateId()
+```
+
+❌ **Don't**: Show activation type when items have multiple same-type activities
+```typescript
+displayLabel: ACTIVATION_LABELS[activity.activation.type] // Shows "Action" 3 times
+```
+
+✅ **Do**: Use activity name
+```typescript
+displayLabel: activity.name || ACTIVATION_LABELS[activity.activation.type] // Shows "Attack", "Grapple", "Shove"
+```
 
 ---
 

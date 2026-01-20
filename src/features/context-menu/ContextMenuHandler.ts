@@ -17,6 +17,7 @@
 import { info, debug, warn } from '../../utils/logging';
 import { FoundryAdapter } from '../../foundry/FoundryAdapter';
 import { MODULE_ID } from '../../constants';
+import { generateId } from '../../utils/data';
 import type {
   TurnPlanFeature,
   TurnPlan,
@@ -331,7 +332,7 @@ export class ContextMenuHandler {
         .map((activity) => ({
           activity,
           activationType: activity.activation.type,
-          displayLabel: ACTIVATION_LABELS[activity.activation.type] || activity.activation.type,
+          displayLabel: activity.name || ACTIVATION_LABELS[activity.activation.type] || activity.activation.type,
           icon: ACTIVATION_ICONS[activity.activation.type] || 'fa-star',
         }));
 
@@ -428,7 +429,7 @@ export class ContextMenuHandler {
 
     // Create feature object
     const feature: TurnPlanFeature = {
-      id: FoundryAdapter.generateId(),
+      id: generateId(),
       sourceItemId: item.id as string,
       sourceName: item.name as string,
       activityId: activity.id || 'default',
@@ -444,8 +445,22 @@ export class ContextMenuHandler {
         currentPlan.bonusActions.push(feature);
         break;
       case 'reaction':
-        currentPlan.reactions.push(feature);
-        break;
+        // Reactions are stored separately, not in the current turn plan
+        // Get the full turn prep data and add to reactions array
+        const turnPrepData = await actor.getFlag(MODULE_ID, 'turnPrepData') || {};
+        if (!turnPrepData.reactions) {
+          turnPrepData.reactions = [];
+        }
+        // Create a reaction object with trigger field
+        const reaction = {
+          ...feature,
+          trigger: '', // User will fill this in via the UI
+        };
+        turnPrepData.reactions.push(reaction);
+        await actor.setFlag(MODULE_ID, 'turnPrepData', turnPrepData);
+        ui.notifications?.info(`Added ${item.name} to reactions`);
+        Hooks.callAll('turnprepAddedFeature', { actor, item, feature: reaction, isReaction: true });
+        return; // Early return for reactions
       default:
         currentPlan.additionalFeatures.push(feature);
     }
@@ -454,7 +469,7 @@ export class ContextMenuHandler {
     storage.saveTurnPlan(currentPlan);
     ui.notifications?.info(`Added ${item.name} to turn prep (${activationType})`);
     
-    // Trigger custom hook for UI updates
+    // Trigger custom hook for UI updates (not for reactions, handled above)
     Hooks.callAll('turnprepAddedFeature', { actor, item, feature, plan: currentPlan });
   }
 

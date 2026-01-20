@@ -131,25 +131,19 @@ export class RollHandler {
 
   /**
    * Register hook for Turn Prep data updates
-   * Creates edit history checkpoints
+   * Note: We don't create edit checkpoints for current turn plan changes.
+   * Edit checkpoints are only for history snapshots to prevent misuse as records.
+   * The current turn plan is a working space where users can freely modify.
    */
   private static registerTurnPrepUpdateHook(): void {
     Hooks.on('turnprepAddedFeature', (event: any) => {
-      debug(`Feature added to turn prep: ${event.item.name}`);
-      RollHandler.createEditCheckpoint(
-        event.actor,
-        event.plan,
-        `Added ${event.item.name} to ${event.feature.activationType}`
-      );
+      debug(`Feature added to turn prep: ${event.item?.name || 'unknown'}`);
+      // No checkpoint creation for current turn plan
     });
 
     Hooks.on('turnprepRemovedFeature', (event: any) => {
-      debug(`Feature removed from turn prep: ${event.item.name}`);
-      RollHandler.createEditCheckpoint(
-        event.actor,
-        event.plan,
-        `Removed ${event.item.name}`
-      );
+      debug(`Feature removed from turn prep: ${event.item?.name || 'unknown'}`);
+      // No checkpoint creation for current turn plan
     });
   }
 
