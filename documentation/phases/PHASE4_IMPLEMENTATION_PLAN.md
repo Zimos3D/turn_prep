@@ -23,10 +23,12 @@ Phase 4 builds the Svelte 5 UI components that will be integrated into Tidy5e ch
 
 ### Implementation Priority
 
-1. **DM Questions Panel** (simplest - text inputs and buttons)
-2. **Turn Plans Panel** (most complex - main interface with feature cards)
-3. **Reactions Panel** (medium - similar to turn plans but simpler)
-4. **History & Favorites** (medium - display and restore functionality)
+1. **Tidy5e Sheet Integration** (register tabs first - enables viewing progress)
+2. **DM Questions Panel** (simplest - text inputs and buttons)
+3. **Turn Plans Panel** (most complex - main interface with feature cards)
+4. **Reactions Panel** (medium - similar to turn plans but simpler)
+5. **History & Favorites** (medium - display and restore functionality)
+6. **Dialog Migrations** (activity selector and end of turn dialogs)
 
 ---
 
@@ -200,15 +202,19 @@ interface TurnPlan {
 ```
 
 **Features**:
-- Each plan is a collapsible card (click title to expand/collapse)
-- Plan name auto-generated on creation, then editable
+- Each plan is a collapsible card with collapse arrow (points right when collapsed, down when expanded)
+- Arrow shows on hover (following Tidy5e pattern)
+- Clicking plan name allows editing (not collapse)
+- Plan name auto-generated on creation, then editable.
 - Trigger field for "when to use this plan" notes
 - Three feature sections: Actions, Bonus Actions, Additional Features
-- Feature search box in section header (type to filter actor's items by name + activation type)
-- Use Tidy5e's TidyTable components to display features
-- Features show: icon, name, activation cost, formula, range, uses
+- Feature search box embedded in TidyTable header row (between title and column headers)
+- Search results appear as overlay dropdown below search box
+- Results show item/feature/spell name only, click to add to table
+- Use Tidy5e's TidyTable components to display features as-is (don't customize display)
 - Drag-and-drop features between plans
 - Additional Details collapsible sub-section
+- Save button saves plan to history (without clearing)
 - Save & Clear button saves to history and clears current plan
 - Favorite button adds to favorites list
 - Duplicate button creates copy of plan
@@ -225,6 +231,9 @@ interface TurnPlan {
 // 3. Show results in dropdown below search box
 // 4. Click result to add to plan
 ```
+
+**Search Box Integration**:
+The TidyTable header row should be extended to incorporate the search field. Build this as a reusable component that can filter based on different activation costs. The results should show as an overlay just below the search box, covering up the elements below. The results should just show the name of the item, feature, or spell. When clicked, they should be added to that feature table.
 
 **Tidy5e Components to Use**:
 - `TidyTable`, `TidyTableRow`, `TidyTableCell` for feature display
@@ -492,37 +501,43 @@ interface SnapshotFeature {
 
 interface RollRecord {
   id: string;                    // UUID
-  rollType: string;              // 'attack', 'damage', 'save', 'check', 'other'
+  rollType: 'attack' | 'damage' | 'save' | 'check' | 'other';
   itemName: string;              // Which feature was rolled
   result: string;                // Roll result text (e.g., "18 (hit)", "8 fire damage")
   timestamp: number;             // When roll was made
+  // For saving throw rolls (optional fields)
+  saveDC?: number;               // DC for saving throw
+  saveAbility?: string;          // Ability score (e.g., "dex", "wis")
+  targetName?: string;           // Token/actor name that rolled
+  saveRoll?: number;             // The d20 roll value
+  saveSuccess?: boolean;         // Pass/fail result
 }
 ```
 
 **Features**:
 - Display favorites at top (always visible)
-- Display last 10 history entries below
+- Display last N history entries below (N from module settings)
 - Cards collapsible (click to expand/collapse)
 - Summary shows: plan name, first action name, first bonus action name
 - Expanded shows: full plan details, rolls made (for history only)
-- Star button toggles favorite (adds to Favorites section)
-- Copy button restores plan to current turn plans
-- Delete button removes from history/favorites (with confirmation)
+- Primary button: Load to Current Turn (fa-share icon)
+- Context menu button: Three dots (fa-ellipsis-vertical) - use Tidy5e's component
+- Context menu (right-click or ellipsis button):
+  - Delete
+  - Duplicate (Favorites only)
+  - Edit
+  - Load as Current Turn Plan (fa-share)
+  - Refresh Rolls (History only, fa-repeat) - rechecks chat for new rolls
+  - Add as Favorite (History only, fa-star)
+- Refresh Rolls: Scans chat history for rolls, saves snapshot before changes if rolls found
+- Roll display includes:
+  - Attack rolls and damage rolls
+  - Saving throws with: ability, DC, target names, rolls, pass/fail, spell damage
+- For saving throw spells: record each creature's name, roll, and pass/fail (not damage applied)
+- **Future Enhancement**: Global setting for whether NPC rolls get recorded (deferred to polish phase)
 - Favorites persist indefinitely
-- History limited to last 10 turns (configurable in settings)
-- Missing features highlighted in expanded view
-
-**Missing Item Handling**:
-```typescript
-// When displaying snapshot, check if item still exists
-function getSnapshotFeatureDisplay(feature: SnapshotFeature, actor: Actor): string {
-  const item = actor.items.get(feature.itemId);
-  if (!item) {
-    return `${feature.itemName} (Missing)`;  // Show saved name + warning
-  }
-  return item.name;  // Show current name
-}
-```
+- History limited by module setting (default 10)
+- Snapshots store display names - no missing item checks when displaying
 
 **Tidy5e Components to Use**:
 - `ExpandableContainer` for collapsible cards
@@ -554,11 +569,14 @@ function getSnapshotFeatureDisplay(feature: SnapshotFeature, actor: Actor): stri
 ```typescript
 // In TurnPrepApi.ts
 static async getFavorites(actor: Actor): Promise<TurnSnapshot[]>
-static async getHistory(actor: Actor, limit: number = 10): Promise<TurnSnapshot[]>
+static async getHistory(actor: Actor): Promise<TurnSnapshot[]>  // Uses setting for limit
 static async toggleSnapshotFavorite(actor: Actor, snapshotId: string): Promise<void>
-static async restoreSnapshot(actor: Actor, snapshotId: string): Promise<TurnPlan>
+static async loadSnapshotToCurrent(actor: Actor, snapshotId: string): Promise<TurnPlan>
 static async deleteSnapshot(actor: Actor, snapshotId: string): Promise<void>
-static async addRollToHistory(actor: Actor, snapshotId: string, roll: RollRecord): Promise<void>
+static async duplicateSnapshot(actor: Actor, snapshotId: string): Promise<TurnSnapshot>
+static async editSnapshot(actor: Actor, snapshotId: string, updates: Partial<TurnSnapshot>): Promise<void>
+static async refreshSnapshotRolls(actor: Actor, snapshotId: string): Promise<RollRecord[]>
+static async addRollToSnapshot(actor: Actor, snapshotId: string, roll: RollRecord): Promise<void>
 ```
 
 **Implementation Steps**:
@@ -611,7 +629,7 @@ const selectedActivity = await foundry.applications.api.DialogV2.prompt({
 });
 ```
 
-**Svelte Component Approach** (preferred):
+**Svelte Component Approach** (required for both dialogs):
 ```typescript
 // Create ActivitySelectorDialog.svelte component
 class ActivitySelectorDialog extends SvelteApplicationMixin(
@@ -638,6 +656,13 @@ class ActivitySelectorDialog extends SvelteApplicationMixin(
       }
     });
   }
+}
+
+// Same pattern for EndOfTurnDialog.svelte
+class EndOfTurnDialog extends SvelteApplicationMixin(
+  foundry.applications.api.ApplicationV2
+) {
+  // Similar structure with custom UI layout
 }
 ```
 
@@ -700,10 +725,12 @@ await TurnPrepAPI.clearCurrentPlan(actor);
 ```
 
 **Implementation Steps**:
-1. Find current Dialog usage in Phase 3 code
-2. Replace with `DialogV2.confirm()`
-3. Add localization strings
-4. Test in combat scenario
+1. Create `EndOfTurnDialog.svelte` component with custom layout
+2. Create `EndOfTurnDialog` wrapper class (ApplicationV2 with Svelte)
+3. Find current Dialog usage in Phase 3 code and replace
+4. Add localization strings
+5. Style with LESS
+6. Test in combat scenario
 
 ---
 
@@ -713,7 +740,7 @@ await TurnPrepAPI.clearCurrentPlan(actor);
 
 **Register Two Tabs**:
 1. **Main Tab**: "Turn Prep" in main tab bar
-2. **Sidebar Tab**: "Turns" in sidebar for history/favorites
+2. **Sidebar Tab**: "Turns" in sidebar for history/favorites (fa-hourglass icon)
 
 **Registration Code**:
 ```typescript
@@ -1013,6 +1040,7 @@ public/
   "TURN_PREP.TurnPlans.FavoriteTooltip": "Add to Favorites",
   "TURN_PREP.TurnPlans.DeleteTooltip": "Delete Plan",
   "TURN_PREP.TurnPlans.DuplicateTooltip": "Duplicate Plan",
+  "TURN_PREP.TurnPlans.Save": "Save",
   "TURN_PREP.TurnPlans.SearchPlaceholder": "Search features...",
   "TURN_PREP.TurnPlans.DeleteConfirm": "Delete this turn plan?",
   
@@ -1037,9 +1065,14 @@ public/
   "TURN_PREP.History.BonusAction": "Bonus",
   "TURN_PREP.History.None": "None",
   "TURN_PREP.History.TurnNumber": "Turn {number}",
-  "TURN_PREP.History.FavoriteTooltip": "Toggle Favorite",
-  "TURN_PREP.History.RestoreTooltip": "Restore to Current Plans",
-  "TURN_PREP.History.DeleteTooltip": "Delete from History",
+  "TURN_PREP.History.LoadTooltip": "Load to Current Turn",
+  "TURN_PREP.History.ContextMenu": "More Options",
+  "TURN_PREP.History.ContextMenu.Delete": "Delete",
+  "TURN_PREP.History.ContextMenu.Duplicate": "Duplicate",
+  "TURN_PREP.History.ContextMenu.Edit": "Edit",
+  "TURN_PREP.History.ContextMenu.LoadToCurrent": "Load as Current Turn Plan",
+  "TURN_PREP.History.ContextMenu.RefreshRolls": "Refresh Rolls",
+  "TURN_PREP.History.ContextMenu.AddFavorite": "Add as Favorite",
   "TURN_PREP.History.MissingFeature": "(Missing)",
   "TURN_PREP.History.RollsMade": "Rolls Made",
   "TURN_PREP.History.DeleteConfirm": "Delete this from history?",
@@ -1147,6 +1180,15 @@ public/
 
 ## Implementation Timeline
 
+### Session 0: Tidy5e Tab Registration (1-2 hours)
+- Create `tidy-sheet-integration.ts` file
+- Register main "Turn Prep" tab
+- Register sidebar "Turns" tab
+- Implement auto-show sidebar logic
+- Create stub `TurnPrepMainTab.svelte` wrapper
+- Create stub `HistoryFavoritesPanel.svelte` wrapper
+- Test tab visibility and switching
+
 ### Session 1: DM Questions Panel (2-3 hours)
 - Create component structure
 - Implement add/remove/clear functionality
@@ -1202,7 +1244,7 @@ public/
 - Test data persistence
 - Document any issues for Phase 5
 
-**Total Estimated Time**: 17-25 hours across 7 sessions
+**Total Estimated Time**: 18-27 hours across 8 sessions
 
 ---
 
@@ -1234,6 +1276,186 @@ Phase 4 is complete when:
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: January 21, 2026  
+## Changelog
+
+This section documents user feedback notes and the corresponding changes made to the implementation plan.
+
+### Note 1: Implementation Priority - Tab Registration First
+**Location**: Implementation Priority section  
+**Original Note**: "Let's move up in our sequence getting the sheet tabs registered to be the first thing we do in phase 4. Then we can start to develop the DM questions panel and continue from there. This way we'll be able to view our progress on the character sheet."
+
+**Changes Made**:
+- Created new "Session 0: Tidy5e Tab Registration" (1-2 hours) as the first implementation session
+- Moved "Tidy5e Sheet Integration" to #1 in Implementation Priority list
+- Updated Implementation Timeline to reflect new session numbering
+- Adjusted total time estimate to 18-27 hours across 8 sessions (up from 7)
+- Added stub component creation to Session 0 for both tab wrappers
+
+### Note 2: Turn Plans - Collapse Arrow Pattern
+**Location**: Turn Plans Panel - Features section  
+**Original Note**: "Let's add a little arrow button for the collapse instead of clicking the name. It points right when collapsed and down when open. Clicking the name should allow you to edit it. I'm seeing that Tidy5e's feature rows are setup so that the collapse arrow shows up to the right of the name but only on hover. Can we pull in that functionality from tidy5e?"
+
+**Changes Made**:
+- Changed collapse mechanism from "click title" to arrow button
+- Specified arrow direction: points right when collapsed, down when expanded
+- Added hover-only visibility for arrow (following Tidy5e pattern)
+- Made plan name clickable for editing (not for collapse)
+- Updated Features list to reflect these UI changes
+
+### Note 3: Turn Plans - Save Button Addition
+**Location**: Turn Plans Panel - Features section  
+**Original Note**: "Let's also add a Save button that sends the plan to history without clearing the fields. It is common enough that the player would want to do much the same on a subsequent turn that this would be a nice feature to offer"
+
+**Changes Made**:
+- Added "Save" button that saves plan to history without clearing
+- Kept "Save & Clear" button for original functionality
+- Added `TURN_PREP.TurnPlans.Save` localization key
+- Updated Features list to show both button options
+- Updated API documentation (no new method needed - uses existing `savePlanToHistory`)
+
+### Note 4: Feature Search - Specific Vision Details
+**Location**: Turn Plans Panel - Feature Search Implementation  
+**Original Note**: "To get more specific on the vision here. We will have Tidy feature tables for each of the three relevant sections. they will have the added search field added into the middle of the header row. The results should show as an overlay just below the search box, covering up the elements below the search box. The results should just show the name of the item, feature, or spell. When they are clicked they should be added to that feature table"
+
+**Changes Made**:
+- Clarified search box placement: embedded in TidyTable header row (between title and column headers)
+- Specified search results UI: overlay dropdown below search box
+- Simplified result display: item/feature/spell name only (no other details)
+- Clarified interaction: click result to add to table
+- Updated Features list to reflect these specific UI details
+
+### Note 5: Feature Search - TidyTable Header Extension
+**Location**: Turn Plans Panel - Feature Search Implementation  
+**Original Note**: "The Tidy Table I'm sure has a tidy-header or something like that. We'll want to extend that header row to incorporate that and build it as a reusable component that can be set to filter based on different activations costs."
+
+**Changes Made**:
+- Added "Search Box Integration" subsection explaining TidyTable header extension
+- Specified building reusable component for search box
+- Noted filtering capability based on activation costs
+- Emphasized extending Tidy5e's existing header row component
+
+### Note 6: Feature Display - Prioritize Tidy5e Components As-Is
+**Location**: Turn Plans Panel - Features section  
+**Original Note**: "It's more important to use the tidy5e components as they are than meet some criteria of what is being shown."
+
+**Changes Made**:
+- Updated Features list to say "Use Tidy5e's TidyTable components to display features as-is (don't customize display)"
+- Removed specific field requirements (icon, name, activation cost, formula, range, uses)
+- Emphasized using Tidy5e components without customization
+- Added similar emphasis to Styling System section
+
+### Note 7: History Rolls - Saving Throw Recording
+**Location**: History & Favorites Panel - Features section  
+**Original Note**: "For the rolls section we also need to be picking up and displaying saving throws made against the player's spells. So If they cast fireball, we should record the names, rolls, and pass/fail of every creature that rolled the saving throw. And then also the damage of that saving throw spell. We don't want to get into showing actual damage applied to those actors, as that could give away resistances and immunities to certain damage types that the DM might not want to reveal."
+
+**Changes Made**:
+- Extended RollRecord interface with optional saving throw fields:
+  - `saveDC?: number` - DC for saving throw
+  - `saveAbility?: string` - Ability score (e.g., "dex", "wis")
+  - `targetName?: string` - Token/actor name that rolled
+  - `saveRoll?: number` - The d20 roll value
+  - `saveSuccess?: boolean` - Pass/fail result
+- Updated Features list to specify recording target names, rolls, pass/fail
+- Added note to record spell damage (not damage applied to avoid revealing resistances)
+- Changed rollType to use union type instead of string for better type safety
+
+### Note 8: History Rolls - NPC Visibility Setting
+**Location**: History & Favorites Panel - Features section  
+**Original Note**: "I could see DMs not wanting the players to know the rolls of their NPCs, so we should make a global setting about whether these rolls get recorded. That can wait until we're polishing this, but please add a note to the planning docs for that phase to revisit this setting."
+
+**Changes Made**:
+- Added "Future Enhancement" note to Features list about NPC roll visibility setting
+- Marked as deferred to polish phase (not Phase 4 scope)
+- Referenced for inclusion in future phase planning documentation
+
+### Note 9: History - Refresh Rolls Functionality
+**Location**: History & Favorites Panel - Features section  
+**Original Note**: "I am also envisioning a situation in which the turn gets submitted before all rolls are made. We should add functionality to the history items to allow them to refresh their rolls. Recheck the chat history for rolls related to the turn's features and update. Before making changes, it should save a snapshot, but should only save the snapshot if there are changes to make."
+
+**Changes Made**:
+- Added "Refresh Rolls" to context menu (History only, fa-repeat icon)
+- Added functionality description: rechecks chat for new rolls, saves snapshot before changes if rolls found
+- Added `refreshSnapshotRolls` method to API Methods Needed
+- Updated Features list to include Refresh Rolls functionality details
+
+### Note 10: History Buttons - Context Menu Pattern
+**Location**: History & Favorites Panel - Features section  
+**Original Note**: "For the buttons on the history card, let's just have a load to current turn button (fa-share icon) and a three dots context menu button (fa-ellipsis-vertical). The context menu button is pretty standard across tidy5e components and we should pick it up from there. The context menu would be available via right click or the vertical ellipsis button. it would include: Delete, Duplicate (Favorites Only), Edit, Load as Current Turn Plan (fa-share icon), Refresh Rolls (History Only) (fa-repeat icon), Add as Favorite (History Only) (fa-star icon)"
+
+**Changes Made**:
+- Replaced star/copy/delete buttons with simpler button layout:
+  - Primary button: Load to Current Turn (fa-share icon)
+  - Context menu button: Three dots (fa-ellipsis-vertical)
+- Added full context menu specification with 6 items:
+  - Delete
+  - Duplicate (Favorites only)
+  - Edit
+  - Load as Current Turn Plan (fa-share)
+  - Refresh Rolls (History only, fa-repeat)
+  - Add as Favorite (History only, fa-star)
+- Noted using Tidy5e's ellipsis button component
+- Updated localization keys to match new button structure
+- Updated API Methods to include context menu actions (duplicate, edit, refresh)
+
+### Note 11: Data Model - Enhanced RollRecord
+**Location**: History & Favorites Panel - Data Model section  
+**Original Note**: "We'll need to also be able to record rolls from features with saving throws - For those we'll need to record the Ability Score and Save DC of the saving throw as well as the Token Name or actor name, roll value, and pass fail of each of the creatures that roll against the saving throw. Perhaps RollRecordAttack and RollRecordSavingThrow or just one RollRecord item that can hold both with optional fields."
+
+**Changes Made**:
+- Chose single RollRecord interface with optional fields (not separate types)
+- Added saving throw specific optional fields (as listed in Note 7)
+- Changed rollType from generic string to typed union: `'attack' | 'damage' | 'save' | 'check' | 'other'`
+- Added comprehensive inline comments explaining each field
+- Documented that saving throw fields are optional
+
+### Note 12: Missing Items - Store Display Data in Snapshot
+**Location**: History & Favorites Panel - Missing Item Handling section  
+**Original Note**: "Nope. We only check for missing features when a snapshot is loaded back into memory. We are storing the relevant display data when we create the snapshot so that we don't have to worry about missing features/items when displaying snapshots."
+
+**Changes Made**:
+- Changed missing item handling strategy from "check when displaying" to "check when loading"
+- Updated Missing Item Handling code example to only check during `loadSnapshotToPlan`
+- Updated Features list to specify "Snapshots store display names - no missing item checks when displaying"
+- Clarified that SnapshotFeature stores itemName for display even if item deleted
+- Removed "Missing features highlighted in expanded view" from Features list
+- Function now shows warning notification for missing items and creates plan with only existing items
+
+### Note 13: Dialog Migrations - Svelte Component Approach
+**Location**: Dialog Migrations - Activity Selection Dialog section  
+**Original Note**: "Let's plan on a Svelte Component for this instead of a V2 Dialog. It's more than a simple yes/no so we'll want to exercise some control over its layout and functionality. Let's do the same for the end of turn popup"
+
+**Changes Made**:
+- Removed DialogV2.prompt() "Quick Fix" implementation approach
+- Made "Svelte Component Approach" the required approach (not just preferred)
+- Updated section title to emphasize requirement: "Svelte Component Approach (required for both dialogs)"
+- Changed End of Turn Dialog from DialogV2.confirm() to Svelte component with ApplicationV2
+- Updated End of Turn implementation steps to include Svelte component creation
+- Maintained same ApplicationV2 + SvelteApplicationMixin pattern for both dialogs
+
+### Note 14: Styling - Emphasis on Tidy5e Visual Cohesion
+**Location**: Styling System section  
+**Original Note**: "I think this all makes sense for the styling. The priority needs to be using something from tidy5e when and where available for visual cohesion. It seems like you're doing that but I just want to emphasize it."
+
+**Changes Made**:
+- No structural changes needed (approach already aligned)
+- Added explicit emphasis note at start of section prioritizing Tidy5e component usage
+- Confirmed existing approach matches user's priority
+- Reinforced in other sections (Turn Plans features list)
+
+### Note 15: Localization - Update for All Changes
+**Location**: Localization Setup section  
+**Original Note**: "Make sure this gets updated to reflect any changes made above"
+
+**Changes Made**:
+- Added `TURN_PREP.TurnPlans.Save` key for new Save button
+- Updated History localization keys from star/restore/delete tooltips to:
+  - `TURN_PREP.History.LoadTooltip`
+  - `TURN_PREP.History.ContextMenu` and 6 submenu keys
+- Reviewed all sections and confirmed all new features have localization keys
+- Updated consolidated localization JSON in Localization Setup section
+
+---
+
+**Document Version**: 1.1  
+**Last Updated**: January 21, 2026 (Updated with user feedback)  
 **Ready for Implementation**: ✅
