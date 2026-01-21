@@ -5,15 +5,25 @@
  * Orchestrates all module initialization through Foundry's hook system.
  * 
  * Lifecycle:
- * 1. Foundry fires 'init' hook → initializeModule()
- * 2. Foundry fires 'ready' hook → readyModule()
- * 3. Module fully initialized and ready to use
+ * 1. Module loads → Register hooks at TOP LEVEL (like Tidy5e integration)
+ * 2. Foundry fires 'init' hook → initializeModule()
+ * 3. Foundry fires 'ready' hook → readyModule()
+ * 4. Module fully initialized and ready to use
  */
 
 import { MODULE_ID } from './constants';
 import { initializeModule } from './hooks/init';
 import { readyModule } from './hooks/ready';
 import { info, error } from './utils/logging';
+import { registerTidy5eHooks } from './sheets/tidy5e/tidy-sheet-integration';
+
+// ============================================================================
+// Top-Level Hook Registration (must happen at module load time)
+// ============================================================================
+
+// Register Tidy5e sheet integration hooks FIRST
+// This must happen at module load time, before ready hook fires
+registerTidy5eHooks();
 
 // ============================================================================
 // Module Hook Registration

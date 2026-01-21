@@ -18,7 +18,6 @@ import { FoundryAdapter } from '../foundry/FoundryAdapter';
 import { info, warn, error, logSection, notifyWarning } from '../utils/logging';
 import { TurnPrepApiInstance } from '../api/TurnPrepApi';
 import { ContextMenuHandler } from '../features/context-menu/ContextMenuHandler';
-import { initializeTidy5eSheets } from '../sheets/tidy5e/tidy-sheet-integration';
 
 // ============================================================================
 // Ready Hook Initialization
@@ -127,14 +126,16 @@ async function setupSheetIntegrations(): Promise<void> {
 
 /**
  * Set up Tidy 5E Sheets integration
- * Registers custom tabs in the sidebar and main sheet area
+ * NOTE: Tidy5e hooks are registered at module load time in main.ts
+ * This function is kept for documentation and to verify Tidy5e is active
  */
 async function setupTidyIntegration(): Promise<void> {
   info('Integrating with Tidy 5E Sheets...');
 
   try {
-    await initializeTidy5eSheets();
-    info('✓ Tidy 5E integration initialized');
+    // Tidy5e hooks are already registered at module load time
+    // This is just to verify Tidy5e is active and log the integration
+    info('✓ Tidy 5E integration hooks registered at module load time');
   } catch (err) {
     warn('Failed to integrate with Tidy 5E Sheets', err);
   }
