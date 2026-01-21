@@ -15,7 +15,46 @@
  */
 
 <script lang="ts">
-  // TODO: Implement component logic
+  /**
+   * History & Favorites Sidebar Tab Wrapper
+   * 
+   * Sidebar tab component that displays history and favorites.
+   * This is a placeholder for now - will be implemented in the next session.
+   */
+
+  import type { Actor } from 'foundry/common/types/module.mjs';
+
+  // Props passed from Tidy5e
+  let { actor }: { actor?: Actor } = $props();
 </script>
 
-<!-- TODO: Implement template -->
+<div class="turn-prep-sidebar-tab">
+  <div class="placeholder">
+    <p>📚 History & Favorites Tab</p>
+    <p style="font-size: 0.9rem; color: var(--t5e-faint-color);">
+      Coming soon...
+    </p>
+  </div>
+</div>
+
+<style lang="less">
+  .turn-prep-sidebar-tab {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    height: 100%;
+
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--t5e-primary-color);
+
+      p {
+        margin: 0.5rem 0;
+      }
+    }
+  }
+</style>

@@ -11,7 +11,7 @@
  * - Logging of all operations
  */
 
-import type { TurnPrepData } from '../../types';
+import type { TurnPrepData, DMQuestion } from '../../types';
 import { FLAG_SCOPE, FLAG_KEY_DATA } from '../../constants';
 import { FoundryAdapter } from '../../foundry/FoundryAdapter';
 import { debug, info, warn, error as logError } from '../../utils/logging';
@@ -166,6 +166,50 @@ export class TurnPrepStorage {
     }
 
     return true;
+  }
+
+  /**
+   * Get all DM questions for an actor
+   * Retrieves from the stored data structure
+   * 
+   * @param actor - The actor to get questions for
+   * @returns Array of DM questions
+   */
+  async getDMQuestions(actor: any): Promise<DMQuestion[]> {
+    try {
+      const data = await TurnPrepStorage.load(actor);
+      return data.dmQuestions || [];
+    } catch (err) {
+      warn('Failed to get DM questions', err);
+      return [];
+    }
+  }
+
+  /**
+   * Save DM questions for an actor
+   * Persists the questions to actor flags
+   * 
+   * @param actor - The actor to save questions for
+   * @param questions - Array of questions to save
+   */
+  async saveDMQuestions(actor: any, questions: DMQuestion[]): Promise<void> {
+    try {
+      const data = await TurnPrepStorage.load(actor);
+      data.dmQuestions = questions;
+      await TurnPrepStorage.save(actor, data);
+      debug(`Saved ${questions.length} DM questions for actor ${actor.id}`);
+    } catch (err) {
+      logError('Failed to save DM questions', err as Error);
+      throw err;
+    }
+  }
+
+  /**
+   * Get singleton instance for method chaining
+   * @returns TurnPrepStorage instance
+   */
+  static getInstance(): TurnPrepStorage {
+    return new TurnPrepStorage();
   }
 
   /**

@@ -293,6 +293,67 @@ export class TurnPrepApi {
   // Info Methods
   // ========================================================================
 
+  // ========================================================================
+  // DM Questions Management
+  // ========================================================================
+
+  /**
+   * Get all DM questions for an actor
+   * @param actor - The actor to get questions for
+   * @returns Array of DM questions
+   */
+  async getDMQuestions(actor: Actor): Promise<DMQuestion[]> {
+    return TurnPrepStorage.getInstance().getDMQuestions(actor);
+  }
+
+  /**
+   * Save DM questions for an actor
+   * @param actor - The actor to save questions for
+   * @param questions - Array of questions to save
+   */
+  async saveDMQuestions(actor: Actor, questions: DMQuestion[]): Promise<void> {
+    return TurnPrepStorage.getInstance().saveDMQuestions(actor, questions);
+  }
+
+  /**
+   * Send a question to the DM as a whisper
+   * @param actor - The actor sending the question
+   * @param questionText - The question text
+   */
+  async sendQuestionToDm(actor: Actor, questionText: string): Promise<void> {
+    const dmUsers = game.users?.filter(u => u.isGM) || [];
+    if (dmUsers.length === 0) {
+      throw new Error('No GM users found');
+    }
+
+    const message = `${actor.name} asks: ${questionText}`;
+    const dmUserIds = dmUsers.map(u => u.id);
+
+    await ChatMessage.create({
+      content: message,
+      whisper: dmUserIds,
+      speaker: ChatMessage.getSpeaker({ actor })
+    });
+  }
+
+  /**
+   * Send a question to public chat
+   * @param actor - The actor sending the question
+   * @param questionText - The question text
+   */
+  async sendQuestionPublic(actor: Actor, questionText: string): Promise<void> {
+    const message = `${actor.name} asks: ${questionText}`;
+
+    await ChatMessage.create({
+      content: message,
+      speaker: ChatMessage.getSpeaker({ actor })
+    });
+  }
+
+  // ========================================================================
+  // Module Information
+  // ========================================================================
+
   /**
    * Get the module ID
    * @returns The module ID string

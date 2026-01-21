@@ -18,6 +18,7 @@ import { FoundryAdapter } from '../foundry/FoundryAdapter';
 import { info, warn, error, logSection, notifyWarning } from '../utils/logging';
 import { TurnPrepApiInstance } from '../api/TurnPrepApi';
 import { ContextMenuHandler } from '../features/context-menu/ContextMenuHandler';
+import { initializeTidy5eSheets } from '../sheets/tidy5e/tidy-sheet-integration';
 
 // ============================================================================
 // Ready Hook Initialization
@@ -131,11 +132,9 @@ async function setupSheetIntegrations(): Promise<void> {
 async function setupTidyIntegration(): Promise<void> {
   info('Integrating with Tidy 5E Sheets...');
 
-  // Wait for Tidy 5E to be ready
   try {
-    // This will be implemented in Phase 2
-    // For now, just mark that we're ready for it
-    info('Tidy 5E integration layer ready for Phase 2 implementation');
+    await initializeTidy5eSheets();
+    info('✓ Tidy 5E integration initialized');
   } catch (err) {
     warn('Failed to integrate with Tidy 5E Sheets', err);
   }
