@@ -1,8 +1,47 @@
 # Phase 2 Implementation Plan - Data Layer
 
-**Status**: Ready to begin  
+**Status**: In Progress - Tab Integration Complete ✅  
 **Based on**: User clarifications in PHASE2_CLARIFICATIONS.md  
 **Files to create**: 2 core + 2 feature selection files  
+**Last Updated**: Session 0 & 1 - Tab rendering fixed
+
+---
+
+## ⚠️ CRITICAL FINDING: Tidy5e Svelte Integration
+
+### DO NOT Use SvelteTab with Our Compiled Components
+
+**Problem**: Dual Svelte runtime conflict causes tab rendering failures.
+
+**Root Cause**:
+- Tidy5e bundles Svelte 5 runtime in their module
+- Our module compiles Svelte components with its own Svelte 5 runtime
+- Two runtimes conflict when Tidy5e tries to mount our components
+- Errors: `first_child_getter undefined`, `appendChild HierarchyRequestError`
+
+**Solution - Use HtmlTab Instead**:
+```typescript
+// ✅ CORRECT - Use HtmlTab with HTML strings
+api.registerCharacterTab(
+  new api.models.HtmlTab({
+    title: 'Turn Prep',
+    tabId: TAB_ID_MAIN,
+    html: createMainTabHtml(),  // Returns HTML string
+    enabled: (data: any) => true
+  })
+);
+
+// ❌ WRONG - SvelteTab causes runtime conflicts
+api.registerCharacterTab(
+  new api.models.SvelteTab({
+    component: MyCompiledSvelteComponent  // Will fail!
+  })
+);
+```
+
+**Future Option**: Use Tidy5e's `api.svelte.framework.mount()` to share their runtime.
+
+**See**: `RESEARCH_FINDINGS.md` → "Tidy5e Svelte Integration" section for full details.
 
 ---
 

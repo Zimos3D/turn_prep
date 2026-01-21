@@ -11,6 +11,7 @@
 import { MODULE_ID, TAB_ID_MAIN, TAB_ID_SIDEBAR_TURNS } from '../../constants';
 import { info, error } from '../../utils/logging';
 import { createMainTabHtml, createSidebarTabHtml } from './TidyHtmlTabs';
+import { initializeDmQuestionsPanel } from './DmQuestionsHandler';
 
 /**
  * Register Tidy5e sheet integration hooks
@@ -55,7 +56,14 @@ function registerTidyTabs(api: any) {
         title: 'Turn Prep',
         tabId: TAB_ID_MAIN,
         html: createMainTabHtml(),
-        enabled: (data: any) => true
+        enabled: (data: any) => true,
+        onRender: (params: any) => {
+          // Initialize DM Questions panel when tab is rendered
+          const { element, data } = params;
+          if (data?.actor && element) {
+            initializeDmQuestionsPanel(data.actor, element);
+          }
+        }
       })
     );
     info(`✓ Registered main Turn Prep tab (ID: ${TAB_ID_MAIN})`);

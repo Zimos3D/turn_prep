@@ -1,34 +1,136 @@
 # Phase 4 Implementation Plan - UI Components
 
-**Status**: Ready for Implementation  
-**Phase**: 4 - UI Components (Svelte 5)  
+**Status**: In Progress - Session 0 & 1  
+**Phase**: 4 - UI Components  
 **Dependencies**: Phase 1 ✅, Phase 2 ✅, Phase 3 ✅  
-**Start Date**: January 21, 2026
+**Start Date**: January 21, 2026  
+**Last Updated**: Session 0 & 1 - Tab integration complete, DM Questions panel added
+
+---
+
+## ⚠️ CRITICAL: Tidy5e Svelte Integration Findings
+
+### DO NOT Use SvelteTab with Compiled Svelte Components
+
+**Problem Discovered**: Attempting to use `api.models.SvelteTab` with our compiled Svelte components causes runtime conflicts.
+
+**Root Cause**:
+- Tidy5e bundles Svelte 5 runtime in their module
+- Our module compiles Svelte components with its own Svelte 5 runtime
+- Two separate Svelte runtimes conflict when Tidy5e tries to mount our components
+- Errors encountered:
+  - `TypeError: Cannot read properties of undefined (reading 'call')` - `first_child_getter` undefined
+  - `HierarchyRequestError: Failed to execute 'appendChild' on 'Node'`
+
+**Required Solution - Use HtmlTab Instead**:
+```typescript
+// ✅ CORRECT - Use HtmlTab with HTML strings
+api.registerCharacterTab(
+  new api.models.HtmlTab({
+    title: 'Turn Prep',
+    tabId: TAB_ID_MAIN,
+    html: createMainTabHtml(),  // Returns HTML string
+    enabled: (data: any) => true,
+    onRender: (params: any) => {
+      // Initialize handlers here
+      initializeDmQuestionsPanel(params.data.actor, params.element);
+    }
+  })
+);
+
+// ❌ WRONG - SvelteTab causes dual runtime conflict
+api.registerCharacterTab(
+  new api.models.SvelteTab({
+    component: MyCompiledSvelteComponent  // This will fail!
+  })
+);
+```
+
+**Implementation Approach**:
+1. Use `HtmlTab` for tab registration
+2. Generate HTML strings with inline styles
+3. Attach event listeners via `onRender` callback
+4. Use vanilla DOM manipulation or lightweight rendering
+5. Store state in actor flags, update via handlers
+
+**Future Svelte Option** (Not Yet Implemented):
+- Could potentially use Tidy5e's `api.svelte.framework.mount()` to share their runtime
+- Would require passing raw/uncompiled components
+- Complex build configuration needed
+- HtmlTab works well for current needs
+
+**See Full Details**: `RESEARCH_FINDINGS.md` → "Tidy5e Svelte Integration" section
 
 ---
 
 ## Overview
 
-Phase 4 builds the Svelte 5 UI components that will be integrated into Tidy5e character sheets. This phase creates the visual interface for turn planning, DM questions, reactions, and history/favorites.
+Phase 4 builds the UI components integrated into Tidy5e character sheets. Due to Svelte runtime conflicts, we're using HtmlTab with vanilla JavaScript instead of Svelte components.
 
-### Technical Stack (Confirmed)
+### Technical Stack (Updated)
 
-- **Framework**: Svelte 5 with runes (`$state`, `$derived`, `$effect`, `$bindable`)
-- **Styling**: LESS with Tidy5e CSS variables
-- **Data Flow**: Hybrid (Context + reactive .svelte.ts + props/events)
-- **Components**: Import Tidy5e components, create custom cards
+- **Framework**: ~~Svelte 5~~ → **HtmlTab + Vanilla JS** (due to runtime conflicts)
+- **Styling**: Inline styles + LESS for shared classes
+- **Data Flow**: Actor flags + event handlers
+- **Integration**: Tidy5e HtmlTab API with onRender callbacks
 - **Dialogs**: DialogV2 (migrate deprecated Dialog)
 - **Localization**: FoundryAdapter.localize() from start
 - **API Communication**: Direct calls to TurnPrepAPI
 
 ### Implementation Priority
 
-1. **Tidy5e Sheet Integration** (register tabs first - enables viewing progress)
-2. **DM Questions Panel** (simplest - text inputs and buttons)
-3. **Turn Plans Panel** (most complex - main interface with feature cards)
+1. **Tidy5e Sheet Integration** ✅ (COMPLETE - Session 0 & 1)
+   - Using HtmlTab instead of SvelteTab due to runtime conflicts
+   - Main "Turn Prep" tab registered and rendering
+   - Sidebar "Turns" tab registered and rendering
+   
+2. **DM Questions Panel** 🚧 (IN PROGRESS - Session 0 & 1)
+   - Basic HTML structure created
+   - 5 question fields with labels
+   - Individual clear buttons
+   - Clear All and Save buttons
+   - Event handlers implemented in DmQuestionsHandler.ts
+   - Auto-save with 500ms debounce
+   - Data persistence via actor flags
+   - **TODO**: Add whisper/public chat functionality
+   
+3. **Turn Plans Panel** (next - most complex main interface)
 4. **Reactions Panel** (medium - similar to turn plans but simpler)
 5. **History & Favorites** (medium - display and restore functionality)
 6. **Dialog Migrations** (activity selector and end of turn dialogs)
+
+---
+
+## Current Implementation Status
+
+### ✅ Completed (Session 0 & 1)
+
+**Files Created**:
+- `src/sheets/tidy5e/TidyHtmlTabs.ts` - HTML generation for tabs
+- `src/sheets/tidy5e/DmQuestionsHandler.ts` - Event handlers and data persistence
+- `src/sheets/tidy5e/tidy-sheet-integration.ts` - Tab registration with onRender callbacks
+
+**Tab Integration**:
+- Main tab: "Turn Prep" with DM Questions panel
+- Sidebar tab: "Turns" (placeholder for history/favorites)
+- Using HtmlTab API to avoid Svelte runtime conflicts
+- onRender callback initializes event handlers
+
+**DM Questions Panel**:
+- 5 predefined questions: Main Action, Bonus Action, Movement, Reaction, Other
+- Auto-save on input (500ms debounce)
+- Save on blur (leaving field)
+- Individual clear buttons per question
+- Clear All button with confirmation dialog
+- Manual Save button
+- Data stored in actor flags: `turn-prep.turnPrepData.dmQuestions`
+
+### 🚧 In Progress
+
+**DM Questions Panel Enhancements**:
+- Add whisper to DM functionality
+- Add public chat message functionality
+- Improve visual styling with Tidy5e theme integration
 
 ---
 
@@ -38,29 +140,28 @@ Phase 4 builds the Svelte 5 UI components that will be integrated into Tidy5e ch
 
 **Purpose**: Quick text entry for questions to ask the DM during the player's turn.
 
-**Visual Layout**:
+**Current Implementation** (Session 0 & 1):
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ DM Questions                                                │
+│ 🎲 DM Questions                                             │
 ├─────────────────────────────────────────────────────────────┤
-│ [+][-] [Text input field.....................] [🗑️][✉️][📢] │
-│ [+][-] [Text input field.....................] [🗑️][✉️][📢] │
-│ [+][-] [Text input field.....................] [🗑️][✉️][📢] │
+│ Main Action:     [input........................] [Clear ✕] │
+│ Bonus Action:    [input........................] [Clear ✕] │
+│ Movement:        [input........................] [Clear ✕] │
+│ Reaction Plan:   [input........................] [Clear ✕] │
+│ Other:           [input........................] [Clear ✕] │
+│                                   [Clear All] [Save Answers] │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Component Structure**:
-```
-DmQuestionsPanel.svelte
-├── QuestionRow.svelte (repeatable)
-│   ├── AddButton (fa-plus)
-│   ├── RemoveButton (fa-minus)
-│   ├── TextArea (4-5 lines, scrollable)
-│   ├── ClearButton (fa-eraser)
-│   ├── WhisperButton (far-paper-plane)
-│   └── PublicButton (fa-bullhorn)
-└── State: questions[]
-```
+**Implementation Details**:
+- HTML-based UI (not Svelte component)
+- Event handlers in DmQuestionsHandler.ts
+- Auto-save with debouncing
+- Actor flag storage
+
+**Original Specification** (for reference):
+````
 
 **Data Model**:
 ```typescript

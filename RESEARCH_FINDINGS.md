@@ -1,5 +1,87 @@
 # Research Findings for Turn Prep Module
 
+## Tidy5e Svelte Integration (CRITICAL - Session 0 & 1)
+
+### Problem: Dual Svelte Runtime Conflict
+
+**Issue Encountered**: When using `SvelteTab` with compiled Svelte components, tabs failed to render with errors:
+- `TypeError: Cannot read properties of undefined (reading 'call')` - specifically `first_child_getter`
+- `HierarchyRequestError: Failed to execute 'appendChild' on 'Node': This node type does not support this method`
+
+**Root Cause**:
+1. Tidy5e bundles its own Svelte 5 runtime in its module
+2. Our module was compiling Svelte components and bundling a separate Svelte 5 runtime
+3. When Tidy5e's `TabContent.svelte` tried to mount our components, it used Tidy5e's runtime
+4. Our components expected OUR runtime's functions (like `first_child_getter`)
+5. Result: Runtime mismatch and undefined function errors
+
+**Why Externalization Didn't Work**:
+- Vite's `rollupOptions.external` config doesn't help because Svelte's compiler outputs inline runtime code
+- The Svelte compiler doesn't generate `import` statements that Rollup can externalize
+- Instead, it generates self-contained functions that reference runtime internals
+
+### Solution 1: HtmlTab (Current Implementation - WORKING)
+
+Use Tidy5e's `HtmlTab` API instead of `SvelteTab`:
+
+```typescript
+// Instead of SvelteTab with compiled components:
+api.registerCharacterTab(
+  new api.models.HtmlTab({
+    title: 'Turn Prep',
+    tabId: TAB_ID_MAIN,
+    html: createMainTabHtml(), // Returns HTML string
+    enabled: (data: any) => true
+  })
+);
+```
+
+**Advantages**:
+- ✅ No Svelte runtime bundled (98.59 kB vs 100+ kB)
+- ✅ No runtime conflicts
+- ✅ Simple and reliable
+- ✅ Fast build times (~1s vs ~2s)
+
+**Disadvantages**:
+- ❌ No reactivity
+- ❌ Manual DOM manipulation required
+- ❌ More verbose for complex UIs
+
+### Solution 2: Use Tidy5e's Svelte Runtime (Future Exploration)
+
+Tidy5e exposes their Svelte runtime via `api.svelte.framework`:
+
+```typescript
+const { mount, unmount, getContext, setContext } = api.svelte.framework;
+
+// Use Tidy5e's mount function instead of bundling our own
+const component = mount(MyComponent, {
+  target: element,
+  props: { ... }
+});
+```
+
+**This approach would require**:
+1. NOT compiling Svelte components in our build
+2. Passing raw `.svelte` files or pre-compiled but runtime-agnostic code
+3. Using Tidy5e's mount/unmount functions at runtime
+4. Complex build configuration
+
+**Status**: Not yet attempted - HtmlTab works well for now
+
+### Recommendations
+
+1. **For static/simple tabs**: Use `HtmlTab` (current approach)
+2. **For complex reactive UIs**: Research using Tidy5e's `api.svelte.framework`
+3. **Never**: Bundle our own Svelte runtime when integrating with Tidy5e
+4. **Always**: Test tab registration immediately after any Svelte/build changes
+
+### References
+- Tidy5e API: `src/api/svelte/TidySvelteApi.ts` in Tidy5e source
+- Tab Types: `src/api/tab/HtmlTab.ts` and `src/api/tab/SvelteTab.ts`
+- Our implementation: `src/sheets/tidy5e/TidyHtmlTabs.ts`
+
+
 
 
 
