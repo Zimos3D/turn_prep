@@ -1,19 +1,15 @@
-/**
- * Tidy 5E Turn Prep Tab Component
- * 
- * Main sheet tab for Tidy 5E integration.
- * Contains DM Questions, Turn Plans, and Reactions panels.
- * 
- * TODO: Implement:
- * - Load turn prep data from storage on mount
- * - Render the three main panels
- * - Handle data updates from child components
- * - Save data to storage when it changes
- * - Use Tidy's styling and layout
- */
+<div class="turn-prep-tab">
+  <h3>Turn Prep</h3>
+  <p>Main tab content will go here</p>
+  <p><em>DM Questions Panel coming in next phase</em></p>
+</div>
 
-<script lang="ts">
-  // TODO: Implement component logic
-</script>
+<style>
+  .turn-prep-tab {
+    padding: 1rem;
+  }
 
-<!-- TODO: Implement template -->
+  h3 {
+    margin-top: 0;
+  }
+</style>

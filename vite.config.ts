@@ -34,7 +34,12 @@ export default defineConfig({
       src: path.resolve('./src'),
     },
   },
-  plugins: [svelte()],
+  plugins: [svelte({
+    compilerOptions: {
+      // Let Tidy5e's Svelte runtime handle the rendering
+      customElement: false,
+    }
+  })],
   build: {
     outDir: path.resolve(__dirname, 'dist'),
     emptyOutDir: true,
@@ -46,9 +51,12 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
+      external: ['svelte', 'svelte/internal', 'svelte/store'],
       output: {
         globals: {
           svelte: 'svelte',
+          'svelte/internal': 'svelte.internal',
+          'svelte/store': 'svelte.store',
         },
       },
     },

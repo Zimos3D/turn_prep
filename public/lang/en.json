@@ -62,13 +62,15 @@
       "None": "None",
       "TurnNumber": "Turn {number}",
       "LoadTooltip": "Load to Current Turn",
-      "ContextMenu": "More Options",
-      "ContextMenu.Delete": "Delete",
-      "ContextMenu.Duplicate": "Duplicate",
-      "ContextMenu.Edit": "Edit",
-      "ContextMenu.LoadToCurrent": "Load as Current Turn Plan",
-      "ContextMenu.RefreshRolls": "Refresh Rolls",
-      "ContextMenu.AddFavorite": "Add as Favorite",
+      "ContextMenuLabel": "More Options",
+      "ContextMenu": {
+        "Delete": "Delete",
+        "Duplicate": "Duplicate",
+        "Edit": "Edit",
+        "LoadToCurrent": "Load as Current Turn Plan",
+        "RefreshRolls": "Refresh Rolls",
+        "AddFavorite": "Add as Favorite"
+      },
       "MissingFeature": "(Missing)",
       "RollsMade": "Rolls Made",
       "DeleteConfirm": "Delete this from history?"
@@ -83,7 +85,9 @@
       "Title": "End Turn",
       "Prompt": "Your turn has ended. Would you like to save this plan to history?",
       "SaveAndClear": "Save & Clear",
-      "DiscardAndClear": "Discard & Clear
+      "DiscardAndClear": "Discard & Clear"
+    },
+    "History": {
       "Load": "Load",
       "Delete": "Delete",
       "Empty": "No favorites yet. Save a turn plan as favorite."

@@ -10,21 +10,19 @@
 
 import { MODULE_ID, TAB_ID_MAIN, TAB_ID_SIDEBAR_TURNS } from '../../constants';
 import { info, error } from '../../utils/logging';
+import { createMainTabHtml, createSidebarTabHtml } from './TidyHtmlTabs';
 
 /**
  * Register Tidy5e sheet integration hooks
  * MUST be called at module initialization time, not from ready hook
+ * 
+ * NOTE: We don't check if Tidy5e is active here because `game` doesn't exist yet.
+ * The hook will only fire if Tidy5e is actually loaded and active.
  */
 export function registerTidy5eHooks(): void {
-  // Check if Tidy5e sheet is active
-  const tidy5eModule = game.modules.get('tidy5e-sheet');
-  if (!tidy5eModule?.active) {
-    info('Tidy5e Sheet not active - Turn Prep tabs will not be registered');
-    return;
-  }
-
   // Register hook listener for Tidy5e readiness
-  // This can fire multiple times, so we use 'on' not 'once'
+  // The hook will only fire if Tidy5e is loaded and active
+  // We use 'on' instead of 'once' to handle potential multiple fires
   Hooks.on('tidy5e-sheet.ready', (api: any) => {
     try {
       registerTidyTabs(api);
@@ -51,18 +49,13 @@ export async function initializeTidy5eSheets(): Promise<void> {
  */
 function registerTidyTabs(api: any) {
   try {
-    // Register main Turn Prep tab
+    // Register main Turn Prep tab using HtmlTab
     api.registerCharacterTab(
-      new api.models.SvelteTab({
-        title: 'TURN_PREP.Tabs.TurnPrep',
+      new api.models.HtmlTab({
+        title: 'Turn Prep',
         tabId: TAB_ID_MAIN,
-        html: '',
-        enabled: (data: any) => true,
-        onRender: (params: any) => {
-          // Will mount TurnPrepMainTab component here
-          // For now, just render a placeholder
-          renderMainTab(params);
-        }
+        html: createMainTabHtml(),
+        enabled: (data: any) => true
       })
     );
     info(`✓ Registered main Turn Prep tab (ID: ${TAB_ID_MAIN})`);
@@ -71,18 +64,14 @@ function registerTidyTabs(api: any) {
   }
 
   try {
-    // Register sidebar Turns tab
+    // Register sidebar Turns tab using HtmlTab
     api.registerCharacterSidebarTab(
-      new api.models.SvelteTab({
-        title: 'TURN_PREP.Tabs.Turns',
+      new api.models.HtmlTab({
+        title: 'Turns',
         tabId: TAB_ID_SIDEBAR_TURNS,
-        html: '',
-        enabled: (data: any) => true,
-        onRender: (params: any) => {
-          // Will mount HistoryFavoritesPanel component here
-          // For now, just render a placeholder
-          renderSidebarTab(params);
-        }
+        iconClass: 'fa-solid fa-hourglass',
+        html: createSidebarTabHtml(),
+        enabled: (data: any) => true
       })
     );
     info(`✓ Registered sidebar Turns tab (ID: ${TAB_ID_SIDEBAR_TURNS})`);
@@ -108,34 +97,4 @@ function setupTabHooks(api: any) {
       }
     }
   });
-}
-
-/**
- * Placeholder for main tab content
- * This will be replaced with actual Svelte component mounting
- */
-function renderMainTab(params: any) {
-  if (!params.tabContentsElement) return;
-  params.tabContentsElement.innerHTML = `
-    <div class="turn-prep-main-tab">
-      <p style="padding: 1rem; text-align: center; color: var(--t5e-primary-color);">
-        Turn Prep Tab Placeholder
-      </p>
-    </div>
-  `;
-}
-
-/**
- * Placeholder for sidebar tab content
- * This will be replaced with actual Svelte component mounting
- */
-function renderSidebarTab(params: any) {
-  if (!params.tabContentsElement) return;
-  params.tabContentsElement.innerHTML = `
-    <div class="turn-prep-sidebar-tab">
-      <p style="padding: 1rem; text-align: center; color: var(--t5e-primary-color);">
-        Turns Sidebar Tab Placeholder
-      </p>
-    </div>
-  `;
 }
