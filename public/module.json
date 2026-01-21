@@ -29,6 +29,9 @@
   "esmodules": [
     "turn-prep.js"
   ],
+  "styles": [
+    "turn-prep.css"
+  ],
   "languages": [
     {
       "lang": "en",

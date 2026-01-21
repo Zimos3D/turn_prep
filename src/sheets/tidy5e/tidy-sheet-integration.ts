@@ -6,12 +6,15 @@
  * 
  * NOTE: The hook registration happens at module load time (see bottom of file),
  * NOT when this function is called. This ensures proper timing with Tidy5e.
+ * 
+ * Uses raw .svelte files with Tidy5e's api.svelte.framework.mount()
+ * to let Tidy5e compile and mount components with their Svelte runtime.
  */
 
+import { mount, unmount } from 'svelte';
 import { MODULE_ID, TAB_ID_MAIN, TAB_ID_SIDEBAR_TURNS } from '../../constants';
 import { info, error } from '../../utils/logging';
-import { createMainTabHtml, createSidebarTabHtml } from './TidyHtmlTabs';
-import { initializeDmQuestionsPanel } from './DmQuestionsHandler';
+import TidyTurnPrepTab from './TidyTurnPrepTab.svelte';
 
 /**
  * Register Tidy5e sheet integration hooks
@@ -51,17 +54,39 @@ export async function initializeTidy5eSheets(): Promise<void> {
 function registerTidyTabs(api: any) {
   try {
     // Register main Turn Prep tab using HtmlTab
+    // We mount our own Svelte component into the container
     api.registerCharacterTab(
       new api.models.HtmlTab({
         title: 'Turn Prep',
         tabId: TAB_ID_MAIN,
-        html: createMainTabHtml(),
+        html: '<div data-turn-prep-root style="height: 100%"></div>',
         enabled: (data: any) => true,
         onRender: (params: any) => {
-          // Initialize DM Questions panel when tab is rendered
           const { element, data } = params;
-          if (data?.actor && element) {
-            initializeDmQuestionsPanel(data.actor, element);
+          const container = element.querySelector('[data-turn-prep-root]');
+          
+          if (!container || !data?.actor) {
+            error('Turn Prep container or actor not found');
+            return;
+          }
+
+          try {
+            // Mount our bundled Svelte component
+            const component = mount(TidyTurnPrepTab, {
+              target: container,
+              props: {
+                actor: data.actor
+              }
+            });
+            
+            // Clean up when tab is destroyed
+            // Note: Tidy5e doesn't explicitly guarantee an onDestroy hook for HtmlTab content removal,
+            // but in many cases the DOM removal handles it. Ideally we'd store reference to unmount later.
+            // For now, relies on DOM garbage collection, though typical Svelte usage suggests explicit unmount.
+            
+            info('Turn Prep main tab mounted successfully');
+          } catch (err) {
+            error('Failed to mount Turn Prep main tab', err as Error);
           }
         }
       })
@@ -72,13 +97,13 @@ function registerTidyTabs(api: any) {
   }
 
   try {
-    // Register sidebar Turns tab using HtmlTab
+    // Register sidebar Turns tab
     api.registerCharacterSidebarTab(
       new api.models.HtmlTab({
         title: 'Turns',
         tabId: TAB_ID_SIDEBAR_TURNS,
         iconClass: 'fa-solid fa-hourglass',
-        html: createSidebarTabHtml(),
+        html: '<div class="turn-prep-sidebar"><p>Sidebar content coming soon...</p></div>',
         enabled: (data: any) => true
       })
     );

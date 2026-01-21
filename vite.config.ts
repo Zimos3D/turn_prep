@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import path from 'path';
+import fs from 'fs';
 
 const s_PACKAGE_ID = 'modules/turn-prep';
 
@@ -34,12 +35,13 @@ export default defineConfig({
       src: path.resolve('./src'),
     },
   },
-  plugins: [svelte({
-    compilerOptions: {
-      // Let Tidy5e's Svelte runtime handle the rendering
-      customElement: false,
-    }
-  })],
+  plugins: [
+    svelte({
+      compilerOptions: {
+        cssHash: ({ hash, css }) => `svelte-tp-${hash(css)}`
+      }
+    })
+  ],
   build: {
     outDir: path.resolve(__dirname, 'dist'),
     emptyOutDir: true,
@@ -49,16 +51,6 @@ export default defineConfig({
       name: 'TurnPrep',
       fileName: 'turn-prep',
       formats: ['es'],
-    },
-    rollupOptions: {
-      external: ['svelte', 'svelte/internal', 'svelte/store'],
-      output: {
-        globals: {
-          svelte: 'svelte',
-          'svelte/internal': 'svelte.internal',
-          'svelte/store': 'svelte.store',
-        },
-      },
     },
     sourcemap: true,
     minify: 'esbuild',

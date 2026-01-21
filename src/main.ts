@@ -16,6 +16,7 @@ import { initializeModule } from './hooks/init';
 import { readyModule } from './hooks/ready';
 import { info, error } from './utils/logging';
 import { registerTidy5eHooks } from './sheets/tidy5e/tidy-sheet-integration';
+import '../styles/turn-prep.less';
 
 // ============================================================================
 // Top-Level Hook Registration (must happen at module load time)
