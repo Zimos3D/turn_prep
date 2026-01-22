@@ -20,11 +20,34 @@ Build a Foundry VTT module that integrates with **Tidy 5E Sheets** (with fallbac
 ## Technology Stack
 
 - **Language**: TypeScript (compiled to JavaScript ES2022)
-- **Frontend Framework**: Svelte 5 (reactive components)
+- **Frontend Framework**: Svelte 5 (bundled runtime with manual mounting)
 - **Build Tool**: Vite (fast development builds)
-- **Styling**: LESS/CSS
+- **Styling**: LESS/CSS with scoped CSS hash
 - **Module API**: Foundry VTT module system with hooks
-- **Sheet Integration**: Tidy 5E Sheets API + Default D&D 5E sheet fallback
+- **Sheet Integration**: Tidy 5E Sheets API (HtmlTab + Svelte mount pattern) + Default D&D 5E sheet fallback
+
+### Tidy5e Integration Strategy: The "Item Piles" Pattern
+
+**Key Discovery**: We CAN use Svelte with Tidy5e, but NOT via SvelteTab.
+
+**The Working Approach**:
+1. Bundle our own Svelte 5 runtime (don't externalize)
+2. Use HtmlTab to create container divs
+3. Manually mount Svelte components using `mount()` in `onRender`
+4. Scope CSS with unique hash to avoid collisions
+
+**Why This Works**:
+- Our components use our bundled runtime (no dual-runtime conflict)
+- Tidy5e doesn't try to mount our components with its runtime
+- Full Svelte 5 reactivity and modern features available
+- Pattern proven by Item Piles module
+
+**What DOESN'T Work**:
+- ❌ SvelteTab with compiled components (dual runtime conflict)
+- ❌ Externalizing Svelte in build config (compiler ignores it)
+- ❌ Importing Tidy5e's internal Svelte components (not exported)
+
+**See**: `TIDY5E_INTEGRATION_SOLUTION.md` for complete implementation details.
 
 ---
 
@@ -262,13 +285,15 @@ export class TurnPrepStorage {
 
 ### 6. **src/sheets/tidy5e/TidyTurnPrepTab.svelte** (Main Tab)
 The main Tidy 5E Turn Prep tab component.
-- Uses Tidy 5E's `registerCharacterTab()` API
+- Registered via HtmlTab (not SvelteTab - see TIDY5E_INTEGRATION_SOLUTION.md)
+- Manually mounted using Svelte's `mount()` function in onRender
 - Renders the three panels: DM Questions, Turn Plans, Reactions
-- Handles interactions and updates data
+- Handles interactions with Svelte reactivity ($state runes)
+- Uses bundled Svelte runtime (no conflict with Tidy5e's runtime)
 
 ### 7. **src/sheets/tidy5e/TidyTurnsSidebarTab.svelte** (Sidebar Tab)
 The Tidy 5E sidebar "Turns" tab for History & Favorites.
-- Uses Tidy 5E's `registerCharacterSidebarTab()` API
+- Uses same HtmlTab + manual mount pattern
 - Reorderable favorites list
 - Limited history entries
 - Load buttons to restore previous turns

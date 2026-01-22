@@ -74,15 +74,38 @@ Each TODO in code files corresponds to items in this list.
 - Chat messages use `msg.speaker.actor` for actor ID (not `msg.actor.id`)
 - Foundry V13+ uses `msg.rolls[]` array (not `msg.roll` singular)
 
-### Phase 4: UI Components (Visual Layer) 🔄 NEXT
+### Phase 4: UI Components (Visual Layer) 🔄 IN PROGRESS
+
+**Current Status**: Session 0, 1, & 2 - Discovered working Svelte integration pattern
+
+**Major Discovery**: Found the "Item Piles" pattern for Svelte + Tidy5e integration!
+- ✅ CAN use Svelte 5 with Tidy5e (bundle own runtime + manual mount)
+- ❌ CANNOT use SvelteTab (dual runtime conflict)
+- ❌ CANNOT externalize Svelte (compiler doesn't generate imports)
+- ❌ CANNOT import Tidy5e's internal components (not exported)
+- ✅ MUST use HtmlTab + container div + `mount()` in onRender
+- ✅ MUST scope CSS with unique hash (cssHash config in vite)
+
+**Implementation Tasks**:
+- [x] **CRITICAL**: Research Tidy5e Svelte integration options
+- [x] Discovered Item Piles pattern - HtmlTab + manual mount
+- [x] Updated vite.config.ts with cssHash for scoped styles
+- [x] Created initial tab registration with HtmlTab
+- [ ] **PRIORITY**: Convert DM Questions to proper Svelte component
+  - Current: HTML strings + vanilla JS handlers
+  - Target: Svelte component with $state runes and reactivity
 - [ ] **PRIORITY**: Migrate activity selection dialog from Dialog (V1) to ApplicationV2 or Svelte component
   - Current: Using deprecated `Dialog` class in ContextMenuHandler.ts (line 343)
   - Deprecated since Foundry V13, will be removed in V16
   - Replace with either ApplicationV2 or proper Svelte dialog component
 - [ ] Simple components first: RollButton, HistoryFavoritesList
 - [ ] Input components: FeatureSelectorWidget
-- [ ] Panel components: DmQuestionsPanel, ReactionsPanel
+- [ ] Panel components: DmQuestionsPanel (Svelte version), ReactionsPanel
 - [ ] Complex component: TurnPlansPanel
+
+**See Documentation**:
+- `TIDY5E_INTEGRATION_SOLUTION.md` - Complete working pattern
+- `PHASE4_IMPLEMENTATION_PLAN.md` - Updated with warnings about what doesn't work
 
 ### Phase 5: Sheet Integration (Connection Layer)
 - [ ] Tidy 5E integration (tidy-sheet-integration.ts)

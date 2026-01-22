@@ -10,56 +10,113 @@
 
 ## ⚠️ CRITICAL: Tidy5e Svelte Integration Findings
 
-### DO NOT Use SvelteTab with Compiled Svelte Components
+### ✅ WORKING SOLUTION: The "Item Piles" Pattern (Bundle Svelte + HtmlTab)
 
-**Problem Discovered**: Attempting to use `api.models.SvelteTab` with our compiled Svelte components causes runtime conflicts.
+**After extensive research, we've found the CORRECT way to use Svelte with Tidy5e** (learned from Item Piles module):
 
-**Root Cause**:
-- Tidy5e bundles Svelte 5 runtime in their module
-- Our module compiles Svelte components with its own Svelte 5 runtime
-- Two separate Svelte runtimes conflict when Tidy5e tries to mount our components
-- Errors encountered:
-  - `TypeError: Cannot read properties of undefined (reading 'call')` - `first_child_getter` undefined
-  - `HierarchyRequestError: Failed to execute 'appendChild' on 'Node'`
+**The Solution**:
+1. **Bundle our own Svelte runtime** in `vite.config.ts` with unique CSS hash
+2. **Use HtmlTab** (not SvelteTab) to create a container div
+3. **Manually mount** our bundled Svelte components using Svelte's `mount()` function in `onRender`
 
-**Required Solution - Use HtmlTab Instead**:
 ```typescript
-// ✅ CORRECT - Use HtmlTab with HTML strings
+import { mount } from 'svelte';
+import MyComponent from './MyComponent.svelte';
+
 api.registerCharacterTab(
   new api.models.HtmlTab({
     title: 'Turn Prep',
     tabId: TAB_ID_MAIN,
-    html: createMainTabHtml(),  // Returns HTML string
+    html: '<div id="turn-prep-root"></div>',
     enabled: (data: any) => true,
     onRender: (params: any) => {
-      // Initialize handlers here
-      initializeDmQuestionsPanel(params.data.actor, params.element);
+      const component = mount(MyComponent, {
+        target: params.element.querySelector('#turn-prep-root'),
+        props: { actor: params.data.actor }
+      });
     }
-  })
-);
-
-// ❌ WRONG - SvelteTab causes dual runtime conflict
-api.registerCharacterTab(
-  new api.models.SvelteTab({
-    component: MyCompiledSvelteComponent  // This will fail!
   })
 );
 ```
 
-**Implementation Approach**:
-1. Use `HtmlTab` for tab registration
-2. Generate HTML strings with inline styles
-3. Attach event listeners via `onRender` callback
-4. Use vanilla DOM manipulation or lightweight rendering
-5. Store state in actor flags, update via handlers
+**Why This Works**:
+- Our Svelte components are compiled with our own runtime (no dual-runtime conflict)
+- CSS is scoped with custom hash to avoid collisions with Tidy5e's styles
+- We control the mounting process, so Tidy5e doesn't try to mount with its runtime
+- Full Svelte 5 reactivity and features available
 
-**Future Svelte Option** (Not Yet Implemented):
-- Could potentially use Tidy5e's `api.svelte.framework.mount()` to share their runtime
-- Would require passing raw/uncompiled components
-- Complex build configuration needed
-- HtmlTab works well for current needs
+**Required Configuration** (`vite.config.ts`):
+```typescript
+svelte({
+  compilerOptions: {
+    cssHash: ({ hash, css }) => `svelte-tp-${hash(css)}`  // Prevents style collisions
+  }
+})
+```
 
-**See Full Details**: `RESEARCH_FINDINGS.md` → "Tidy5e Svelte Integration" section
+---
+
+### ❌ WHAT DOESN'T WORK (Don't Try These Again!)
+
+#### 1. Using SvelteTab with Compiled Components
+**Problem**: Dual Svelte runtime conflict
+```typescript
+// ❌ NEVER DO THIS - Will fail with "first_child_getter undefined"
+api.registerCharacterTab(
+  new api.models.SvelteTab({
+    component: MyCompiledSvelteComponent  // Two runtimes conflict!
+  })
+);
+```
+
+**Why It Fails**:
+- Tidy5e bundles its own Svelte 5 runtime
+- Our module bundles a separate Svelte 5 runtime
+- SvelteTab uses Tidy5e's runtime to mount components
+- Our components expect OUR runtime's functions
+- Result: `TypeError: Cannot read properties of undefined (reading 'call')`
+
+#### 2. Externalizing Svelte in Build Config
+**Problem**: Svelte compiler doesn't generate import statements
+```typescript
+// ❌ THIS DOESN'T WORK - Svelte compiler ignores it
+rollupOptions: {
+  external: ['svelte', 'svelte/internal']  // Has no effect!
+}
+```
+
+**Why It Fails**:
+- Vite's externalize only works for `import` statements
+- Svelte compiler generates inline runtime code, not imports
+- No way to make compiled components use external runtime
+
+#### 3. Importing Tidy5e's Svelte Components Directly
+**Problem**: Components not exported by Tidy5e
+```typescript
+// ❌ THIS DOESN'T WORK - Not in public API
+import { TidyTable, TidyTableRow } from '@tidy5e-sheet/api';  // Doesn't exist!
+```
+
+**Why It Fails**:
+- Tidy5e only exports API functions, not Svelte components
+- Components are internal implementation details
+- Must build our own components with Tidy5e CSS classes
+
+---
+
+### 📚 Implementation Approach (Current)
+
+**Phase 4 is using the "Item Piles" pattern:**
+1. ✅ Svelte 5 components with full reactivity
+2. ✅ Own bundled runtime with scoped CSS (`cssHash`)
+3. ✅ HtmlTab registration with container div
+4. ✅ Manual mounting in `onRender` callback
+5. ✅ Tidy5e CSS variables for theming (`var(--t5e-primary-color)`)
+6. ✅ Custom components that match Tidy5e's visual style
+
+**See Full Details**: 
+- `TIDY5E_INTEGRATION_SOLUTION.md` - Complete implementation guide
+- `RESEARCH_FINDINGS.md` → "Tidy5e Svelte Integration" section
 
 ---
 
@@ -67,31 +124,34 @@ api.registerCharacterTab(
 
 Phase 4 builds the UI components integrated into Tidy5e character sheets. Due to Svelte runtime conflicts, we're using HtmlTab with vanilla JavaScript instead of Svelte components.
 
-### Technical Stack (Updated)
+### Technical Stack (Updated - Item Piles Pattern)
 
-- **Framework**: ~~Svelte 5~~ → **HtmlTab + Vanilla JS** (due to runtime conflicts)
-- **Styling**: Inline styles + LESS for shared classes
-- **Data Flow**: Actor flags + event handlers
-- **Integration**: Tidy5e HtmlTab API with onRender callbacks
+- **Framework**: **Svelte 5** with bundled runtime + manual mounting
+- **Integration**: Tidy5e HtmlTab API with Svelte `mount()` in onRender
+- **Styling**: LESS with scoped CSS hash (`cssHash: 'svelte-tp-'`)
+- **Data Flow**: Actor flags + Svelte reactivity ($state runes)
 - **Dialogs**: DialogV2 (migrate deprecated Dialog)
 - **Localization**: FoundryAdapter.localize() from start
 - **API Communication**: Direct calls to TurnPrepAPI
+- **Theming**: Tidy5e CSS variables (e.g., `var(--t5e-primary-color)`)
 
 ### Implementation Priority
 
-1. **Tidy5e Sheet Integration** ✅ (COMPLETE - Session 0 & 1)
-   - Using HtmlTab instead of SvelteTab due to runtime conflicts
+1. **Tidy5e Sheet Integration** ✅ (COMPLETE - Session 0, 1, & 2)
+   - Using Item Piles pattern: HtmlTab + bundled Svelte + manual mount()
    - Main "Turn Prep" tab registered and rendering
    - Sidebar "Turns" tab registered and rendering
+   - vite.config.ts configured with cssHash for scoped styles
    
-2. **DM Questions Panel** 🚧 (IN PROGRESS - Session 0 & 1)
-   - Basic HTML structure created
+2. **DM Questions Panel** 🚧 (IN PROGRESS - Session 0, 1, & 2)
+   - ~~Basic HTML structure created~~ → Migrating to Svelte component
    - 5 question fields with labels
    - Individual clear buttons
    - Clear All and Save buttons
-   - Event handlers implemented in DmQuestionsHandler.ts
+   - ~~Event handlers implemented in DmQuestionsHandler.ts~~ → Moving to Svelte reactivity
    - Auto-save with 500ms debounce
    - Data persistence via actor flags
+   - **TODO**: Convert to proper Svelte component with $state runes
    - **TODO**: Add whisper/public chat functionality
    
 3. **Turn Plans Panel** (next - most complex main interface)

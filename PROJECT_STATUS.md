@@ -1,8 +1,8 @@
 # Project Status Overview
 
-**Last Updated**: January 20, 2026  
+**Last Updated**: January 21, 2026  
 **Overall Status**: 🟢 ON TRACK  
-**Current Phase**: Phase 4 (UI Components) - Planning  
+**Current Phase**: Phase 4 (UI Components) - In Progress (Sessions 0, 1, & 2)  
 
 ---
 
@@ -59,16 +59,42 @@
 
 ## Active Work 🔄
 
-### Phase 4: UI Components (Planning)
-- [ ] Svelte 5 component architecture
-- [ ] DM Questions panel
-- [ ] Turn Plans panel with feature lists
-- [ ] Reactions panel
-- [ ] Feature selector widget
-- [ ] History/Favorites list
-- [ ] Roll button component
+### Phase 4: UI Components (In Progress - Sessions 0, 1, & 2)
 
-**Current Task**: Create PHASE4_CLARIFICATIONS.md and gather requirements
+**Major Breakthrough**: Discovered working Svelte integration pattern! 🎉
+
+**Research Completed**:
+- ✅ Researched Tidy5e Svelte integration options
+- ✅ Discovered "Item Piles" pattern (HtmlTab + manual mount)
+- ✅ Documented what DOESN'T work (SvelteTab, externalization, direct imports)
+- ✅ Documented what DOES work (bundled runtime + manual mounting)
+- ✅ Updated vite.config.ts with cssHash for scoped styles
+- ✅ Created initial tab registration structure
+
+**Current Implementation**:
+- 🔄 Converting DM Questions from HTML strings to Svelte component
+- 🔄 Setting up proper Svelte component architecture
+- 📋 Next: Build remaining components (Turn Plans, Reactions, History)
+
+**Key Findings**:
+- ❌ **Don't use SvelteTab** - causes dual runtime conflict
+- ❌ **Don't externalize Svelte** - compiler doesn't generate imports
+- ❌ **Can't import Tidy5e components** - internal, not exported
+- ✅ **Do use HtmlTab** + container div + `mount()` in onRender
+- ✅ **Do bundle own runtime** with scoped CSS hash
+- ✅ **Do use Tidy5e CSS variables** for theming
+
+**See Documentation**:
+- `TIDY5E_INTEGRATION_SOLUTION.md` - Complete working pattern
+- `PHASE4_IMPLEMENTATION_PLAN.md` - Updated with warnings
+- `RESEARCH_FINDINGS.md` - Technical details
+
+**Remaining Tasks**:
+- [ ] Convert DM Questions to proper Svelte component
+- [ ] Build Turn Plans panel (most complex)
+- [ ] Build Reactions panel
+- [ ] Build History/Favorites components
+- [ ] Migrate deprecated Dialog to ApplicationV2
 
 ---
 
