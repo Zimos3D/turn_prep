@@ -8,3 +8,6 @@ dist/
 .idea/
 *.log
 foundry-data-path-config.json
+
+# Reference materials (temporary learning files)
+reference/

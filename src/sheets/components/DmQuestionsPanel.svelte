@@ -1,258 +1,319 @@
-/**
- * DM Questions Panel Component
- * 
- * Svelte component for managing DM questions.
- * Allows adding/removing questions and sending to chat or DM whisper.
- * 
- * Props:
- * - actor: The character actor
- * - questions: Array of questions
- * - onUpdate: Callback when questions change
- * 
- * TODO: Implement UI:
- * - Repeating text input fields for questions
- * - + button to add new question
- * - - button to delete question (disabled for first)
- * - "Send to Chat" and "Whisper to DM" buttons for each
- * - Handle Foundry chat creation
- */
+﻿<script lang="ts">
+  import type { Actor5e } from 'src/foundry/foundry.types';
+  import { FLAG_SCOPE, FLAG_KEY_DATA } from 'src/constants';
+  import { info } from 'src/utils/logging';
 
-<script lang="ts">
-  /**
-   * DM Questions Panel
-   * 
-   * Allows players to quickly enter questions for the DM during their turn.
-   * Questions can be sent as whispers (private) or public chat.
-   * Questions persist per character in actor flags.
-   */
+  // Actor passed as prop from Tidy5e
+  interface Props {
+    actor: Actor5e;
+  }
+  
+  let { actor }: Props = $props();
 
-  import { onMount } from 'svelte';
-  import type { DMQuestion } from '../../types/turn-prep.types';
-  import { FoundryAdapter } from '../../foundry/FoundryAdapter';
-  import { TurnPrepApiInstance as api } from '../../api/TurnPrepApi';
-  import QuestionRow from './QuestionRow.svelte';
+  interface DmQuestion {
+    question: string;
+    answer: string;
+  }
 
-  // Props
-  let { actor }: { actor: Actor } = $props();
-
-  // State
-  let questions: DMQuestion[] = $state([]);
-  let loading = $state(true);
+  // Load initial data directly
+  function loadQuestions(): DmQuestion[] {
+    if (!actor) {
+      return Array.from({ length: 5 }, () => ({ question: '', answer: '' }));
+    }
+    
+    const savedData = actor.getFlag(FLAG_SCOPE, FLAG_KEY_DATA) as any;
+    if (savedData?.dmQuestions) {
+      // Handle both old object format and new array format
+      if (Array.isArray(savedData.dmQuestions)) {
+        return savedData.dmQuestions;
+      } else if (typeof savedData.dmQuestions === 'object') {
+        // Migrate from old format
+        const oldData = savedData.dmQuestions as Record<string, { question: string; answer: string }>;
+        const migrated = Object.values(oldData);
+        info('Migrated DM Questions from object to array format');
+        // Save migrated data asynchronously
+        setTimeout(() => {
+          const currentData = actor.getFlag(FLAG_SCOPE, FLAG_KEY_DATA) as any || {};
+          actor.setFlag(FLAG_SCOPE, FLAG_KEY_DATA, {
+            ...currentData,
+            dmQuestions: migrated
+          });
+        }, 0);
+        return migrated;
+      }
+    }
+    
+    // If no questions, start with 5 empty ones
+    return Array.from({ length: 5 }, () => ({ question: '', answer: '' }));
+  }
 
   // Initialize questions from actor flags
-  onMount(async () => {
-    try {
-      const stored = await api.getDMQuestions(actor);
-      questions = stored || [];
-      
-      // Ensure at least one empty question exists
-      if (questions.length === 0) {
-        questions = [createEmptyQuestion()];
-      }
-      loading = false;
-    } catch (error) {
-      console.error('Failed to load DM questions:', error);
-      questions = [createEmptyQuestion()];
-      loading = false;
-    }
-  });
+  let questions = $state<DmQuestion[]>(loadQuestions());
 
-  // Create a new empty question
-  function createEmptyQuestion(): DMQuestion {
-    return {
-      id: foundry.utils.randomID(),
-      text: '',
-      tags: [],
-      createdTime: Date.now()
-    };
+  // Auto-save with debounce
+  let saveTimeout: number | null = null;
+
+  function saveQuestions() {
+    const currentData = actor.getFlag(FLAG_SCOPE, FLAG_KEY_DATA) as any || {};
+    actor.setFlag(FLAG_SCOPE, FLAG_KEY_DATA, {
+      ...currentData,
+      dmQuestions: questions
+    });
   }
 
-  // Add new question row
+  function debouncedSave() {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      saveQuestions();
+      saveTimeout = null;
+    }, 500) as unknown as number;
+  }
+
+  function handleInput(index: number, field: 'question' | 'answer', value: string) {
+    questions[index][field] = value;
+    debouncedSave();
+  }
+
   function addQuestion() {
-    questions = [...questions, createEmptyQuestion()];
-  }
-
-  // Remove question (but keep at least one)
-  function removeQuestion(id: string) {
-    if (questions.length <= 1) {
-      ui.notifications?.warn(
-        FoundryAdapter.localize('TURN_PREP.DmQuestions.MinimumOneQuestion')
-      );
-      return;
-    }
-    questions = questions.filter(q => q.id !== id);
+    questions = [...questions, { question: '', answer: '' }];
     saveQuestions();
   }
 
-  // Update question text
-  function updateQuestion(id: string, text: string) {
-    const question = questions.find(q => q.id === id);
-    if (question) {
-      question.text = text;
+  function removeQuestion(index: number) {
+    // If only one question, clear it instead of removing
+    if (questions.length === 1) {
+      questions[index] = { question: '', answer: '' };
+    } else {
+      questions = questions.filter((_, i) => i !== index);
     }
-  }
-
-  // Clear question text (keep row)
-  function clearQuestion(id: string) {
-    const question = questions.find(q => q.id === id);
-    if (question) {
-      question.text = '';
-    }
-  }
-
-  // Send question to DM (whisper)
-  async function sendToDm(id: string) {
-    const question = questions.find(q => q.id === id);
-    if (!question || !question.text.trim()) {
-      ui.notifications?.warn(
-        FoundryAdapter.localize('TURN_PREP.DmQuestions.EmptyQuestion')
-      );
-      return;
-    }
-
-    try {
-      await api.sendQuestionToDm(actor, question.text);
-      ui.notifications?.info(
-        FoundryAdapter.localize('TURN_PREP.DmQuestions.SentToDm')
-      );
-    } catch (error) {
-      console.error('Failed to send question to DM:', error);
-      ui.notifications?.error(
-        FoundryAdapter.localize('TURN_PREP.DmQuestions.SendFailed')
-      );
-    }
-  }
-
-  // Send question to public chat
-  async function sendPublic(id: string) {
-    const question = questions.find(q => q.id === id);
-    if (!question || !question.text.trim()) {
-      ui.notifications?.warn(
-        FoundryAdapter.localize('TURN_PREP.DmQuestions.EmptyQuestion')
-      );
-      return;
-    }
-
-    try {
-      await api.sendQuestionPublic(actor, question.text);
-      ui.notifications?.info(
-        FoundryAdapter.localize('TURN_PREP.DmQuestions.SentToPublic')
-      );
-    } catch (error) {
-      console.error('Failed to send question to public:', error);
-      ui.notifications?.error(
-        FoundryAdapter.localize('TURN_PREP.DmQuestions.SendFailed')
-      );
-    }
-  }
-
-  // Save all questions to actor flags
-  async function saveQuestions() {
-    try {
-      await api.saveDMQuestions(actor, questions);
-    } catch (error) {
-      console.error('Failed to save DM questions:', error);
-    }
-  }
-
-  // Auto-save on changes
-  $effect.post(() => {
     saveQuestions();
-  });
+  }
+
+  function clearQuestion(index: number) {
+    questions[index] = { question: '', answer: '' };
+    saveQuestions();
+  }
+
+  async function whisperToDm(index: number) {
+    const q = questions[index];
+    if (!q.question) return;
+
+    const content = q.question;
+
+    const gmUsers = game.users?.filter(u => u.isGM) || [];
+    const gmIds = gmUsers.map(u => u.id);
+
+    await ChatMessage.create({
+      content,
+      whisper: gmIds,
+      speaker: ChatMessage.getSpeaker({ actor })
+    });
+
+    ui.notifications?.info('Question whispered to DM');
+  }
+
+  async function sendToChat(index: number) {
+    const q = questions[index];
+    if (!q.question) return;
+
+    const content = q.question;
+
+    await ChatMessage.create({
+      content,
+      speaker: ChatMessage.getSpeaker({ actor })
+    });
+
+    ui.notifications?.info('Question sent to chat');
+  }
 </script>
 
-<div class="dm-questions-panel">
-  <div class="panel-header">
-    <h3>{FoundryAdapter.localize('TURN_PREP.DmQuestions.Title')}</h3>
+<div class="turn-prep-dm-questions">
+  <div class="questions-header">
+    <h3>DM Questions</h3>
+    <button type="button" class="add-question-btn" onclick={addQuestion}>
+      <i class="fas fa-plus"></i> Add Question
+    </button>
   </div>
 
-  {#if loading}
-    <div class="loading">
-      <p>{FoundryAdapter.localize('TURN_PREP.Loading')}</p>
-    </div>
-  {:else}
-    <div class="questions-list">
-      {#each questions as question (question.id)}
-        <QuestionRow
-          {question}
-          onRemove={() => removeQuestion(question.id)}
-          onClear={() => clearQuestion(question.id)}
-          onUpdateText={(text) => updateQuestion(question.id, text)}
-          onSendDm={() => sendToDm(question.id)}
-          onSendPublic={() => sendPublic(question.id)}
-        />
-      {/each}
-    </div>
-
-    <div class="add-question-button">
-      <button
-        class="tidy-button"
-        on:click={addQuestion}
-        title={FoundryAdapter.localize('TURN_PREP.DmQuestions.AddTooltip')}
-      >
-        <i class="fas fa-plus"></i>
-        {FoundryAdapter.localize('TURN_PREP.DmQuestions.AddQuestion')}
-      </button>
-    </div>
-  {/if}
+  <div class="questions-list">
+    {#each questions as q, i}
+      <div class="question-row">
+        <div class="question-inputs">
+          <input
+            type="text"
+            class="question-input"
+            placeholder="What do you want to ask the DM?"
+            value={q.question}
+            oninput={(e) => handleInput(i, 'question', e.currentTarget.value)}
+            onblur={() => saveQuestions()}
+          />
+          <textarea
+            class="answer-input"
+            placeholder="DM's answer (or your notes)"
+            value={q.answer}
+            oninput={(e) => handleInput(i, 'answer', e.currentTarget.value)}
+            onblur={() => saveQuestions()}
+          ></textarea>
+        </div>
+        <div class="question-actions">
+          <button
+            type="button"
+            class="whisper-btn"
+            title="Whisper to DM"
+            onclick={() => whisperToDm(i)}
+          >
+            <i class="fas fa-paper-plane"></i>
+          </button>
+          <button
+            type="button"
+            class="chat-btn"
+            title="Send to chat"
+            onclick={() => sendToChat(i)}
+          >
+            <i class="fas fa-comments"></i>
+          </button>
+          <button
+            type="button"
+            class="remove-btn"
+            title="Remove this question"
+            onclick={() => removeQuestion(i)}
+          >
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    {/each}
+  </div>
 </div>
 
 <style lang="less">
-  .dm-questions-panel {
+  .turn-prep-dm-questions {
+    padding: 0.5rem;
+  }
+
+  .questions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+
+    h3 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    .add-question-btn {
+      padding: 0.25rem 0.75rem;
+      background: var(--t5e-primary-accent-color, #4b4a44);
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 0.9rem;
+
+      &:hover {
+        background: var(--t5e-primary-accent-color-hover, #5a5850);
+      }
+
+      i {
+        margin-right: 0.25rem;
+      }
+    }
+  }
+
+  .questions-list {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    padding: 1rem;
+  }
 
-    .panel-header {
-      border-bottom: 1px solid var(--t5e-separator-color);
-      padding-bottom: 0.5rem;
-      margin-bottom: 0.5rem;
+  .question-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--t5e-faint-color, rgba(0, 0, 0, 0.05));
+    border-radius: 4px;
+    border: 1px solid var(--t5e-faintest-color, rgba(0, 0, 0, 0.1));
+  }
 
-      h3 {
-        margin: 0;
-        font-size: 1.1rem;
-        color: var(--t5e-primary-color);
-      }
+  .question-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+  }
+
+  .question-input,
+  .answer-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--t5e-separator-color, #ccc);
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: white;
+
+    &:focus {
+      outline: none;
+      border-color: var(--t5e-primary-accent-color, #4b4a44);
     }
+  }
 
-    .loading {
-      display: flex;
-      justify-content: center;
-      padding: 2rem;
-      color: var(--t5e-primary-color);
+  .answer-input {
+    min-height: 1.75rem;
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .question-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 0.25rem;
+    align-items: flex-start;
+  }
+
+  .question-actions button {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+
+    i {
+      font-size: 0.9rem;
     }
+  }
 
-    .questions-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
+  .whisper-btn {
+    background: var(--t5e-primary-accent-color, #4b4a44);
+    color: white;
+
+    &:hover {
+      background: var(--t5e-primary-accent-color-hover, #5a5850);
     }
+  }
 
-    .add-question-button {
-      display: flex;
-      justify-content: center;
-      margin-top: 0.5rem;
+  .chat-btn {
+    background: #2196f3;
+    color: white;
 
-      button {
-        padding: 0.5rem 1rem;
-        background: var(--t5e-accent-color);
-        color: var(--t5e-light-color);
-        border: none;
-        border-radius: var(--t5e-border-radius);
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.2s ease;
+    &:hover {
+      background: #1976d2;
+    }
+  }
 
-        &:hover {
-          transform: translateY(-1px);
-          box-shadow: var(--t5e-shadow-light);
-        }
+  .remove-btn {
+    background: #f44336;
+    color: white;
 
-        i {
-          margin-right: 0.5rem;
-        }
-      }
+    &:hover {
+      background: #d32f2f;
     }
   }
 </style>
