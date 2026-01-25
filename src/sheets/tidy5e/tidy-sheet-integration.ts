@@ -63,6 +63,8 @@ function registerTidyTabs(api: any) {
         enabled: (data: any) => true,
         onRender: (params: any) => {
           const { element, data } = params;
+          // Use the stable `element` (the tab element) as the key to avoid
+          // remounting when Tidy re-renders the inner container element.
           const container = element.querySelector('[data-turn-prep-root]');
           
           if (!container || !data?.actor) {
@@ -71,19 +73,39 @@ function registerTidyTabs(api: any) {
           }
 
           try {
-            // Mount our bundled Svelte component
+            // Check if component is already mounted for this tab element
+            // Use the outer `element` as a stable key because Tidy may recreate
+            // the inner container on re-renders which would otherwise look like
+            // a new mount target and cause repeated mounts (losing focus).
+            const mapKey = element;
+            // Lazily create the map on the api object to persist across
+            // potential multiple registerTidyTabs calls.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (api as any).__turnPrepComponentMap = (api as any).__turnPrepComponentMap || new WeakMap<Element, any>();
+            const componentMap = (api as any).__turnPrepComponentMap as WeakMap<Element, any>;
+
+            const existingComponent = componentMap.get(mapKey);
+
+            if (existingComponent) {
+              if (container.childElementCount > 0) {
+                return;
+              }
+
+              try {
+                unmount(existingComponent);
+              } catch (unmountErr) {
+                error('Failed to unmount stale Turn Prep tab', unmountErr as Error);
+              } finally {
+                componentMap.delete(mapKey);
+              }
+            }
+
             const component = mount(TidyTurnPrepTab, {
               target: container,
-              props: {
-                actor: data.actor
-              }
+              props: { actor: data.actor }
             });
-            
-            // Clean up when tab is destroyed
-            // Note: Tidy5e doesn't explicitly guarantee an onDestroy hook for HtmlTab content removal,
-            // but in many cases the DOM removal handles it. Ideally we'd store reference to unmount later.
-            // For now, relies on DOM garbage collection, though typical Svelte usage suggests explicit unmount.
-            
+
+            componentMap.set(mapKey, component);
             info('Turn Prep main tab mounted successfully');
           } catch (err) {
             error('Failed to mount Turn Prep main tab', err as Error);

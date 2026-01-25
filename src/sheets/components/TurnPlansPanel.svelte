@@ -129,8 +129,9 @@
 
             <div class="plan-content">
               <div class="plan-field">
-                <label>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Trigger')}</label>
+                <label for={"tp-trigger-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Trigger')}</label>
                 <input
+                  id={"tp-trigger-" + plan.id}
                   type="text"
                   bind:value={plan.trigger}
                   placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.TriggerPlaceholder')}
@@ -138,16 +139,18 @@
               </div>
 
               <div class="plan-field">
-                <label>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Movement')}</label>
+                <label for={"tp-movement-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Movement')}</label>
                 <input
+                  id={"tp-movement-" + plan.id}
                   type="text"
                   bind:value={plan.movement}
                 />
               </div>
 
               <div class="plan-field">
-                <label>{FoundryAdapter.localize('TURN_PREP.TurnPlans.RoleplayNotes')}</label>
+                <label for={"tp-roleplay-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.RoleplayNotes')}</label>
                 <textarea
+                  id={"tp-roleplay-" + plan.id}
                   bind:value={plan.roleplay}
                   rows="3"
                 ></textarea>

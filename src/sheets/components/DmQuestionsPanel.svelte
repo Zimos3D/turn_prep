@@ -1,7 +1,7 @@
 ﻿<script lang="ts">
   import type { Actor5e } from 'src/foundry/foundry.types';
   import { FLAG_SCOPE, FLAG_KEY_DATA } from 'src/constants';
-  import { info } from 'src/utils/logging';
+  import { info, error } from 'src/utils/logging';
 
   // Actor passed as prop from Tidy5e
   interface Props {
@@ -50,15 +50,26 @@
   // Initialize questions from actor flags
   let questions = $state<DmQuestion[]>(loadQuestions());
 
+  // Collapsible state
+  let collapsed = $state(false);
+
   // Auto-save with debounce
   let saveTimeout: number | null = null;
 
   function saveQuestions() {
-    const currentData = actor.getFlag(FLAG_SCOPE, FLAG_KEY_DATA) as any || {};
-    actor.setFlag(FLAG_SCOPE, FLAG_KEY_DATA, {
+    if (!actor) return;
+
+    const currentData = (actor.getFlag(FLAG_SCOPE, FLAG_KEY_DATA) as any) || {};
+    const payload = {
       ...currentData,
-      dmQuestions: questions
-    });
+      dmQuestions: questions.map((q) => ({ ...q }))
+    };
+
+    const flagPath = `flags.${FLAG_SCOPE}.${FLAG_KEY_DATA}`;
+
+    actor
+      .update({ [flagPath]: payload }, { render: false, diff: false })
+      .catch((err: unknown) => error('Failed to save DM questions', err as Error));
   }
 
   function debouncedSave() {
@@ -66,7 +77,7 @@
     saveTimeout = setTimeout(() => {
       saveQuestions();
       saveTimeout = null;
-    }, 500) as unknown as number;
+    }, 1000) as unknown as number;
   }
 
   function handleInput(index: number, field: 'question' | 'answer', value: string) {
@@ -129,13 +140,22 @@
 
 <div class="turn-prep-dm-questions">
   <div class="questions-header">
+    <button 
+      type="button" 
+      class="collapse-toggle"
+      onclick={() => collapsed = !collapsed}
+      title={collapsed ? 'Expand' : 'Collapse'}
+    >
+      <i class="fas fa-chevron-{collapsed ? 'right' : 'down'}"></i>
+    </button>
     <h3>DM Questions</h3>
     <button type="button" class="add-question-btn" onclick={addQuestion}>
       <i class="fas fa-plus"></i> Add Question
     </button>
   </div>
 
-  <div class="questions-list">
+  {#if !collapsed}
+    <div class="questions-list">
     {#each questions as q, i}
       <div class="question-row">
         <div class="question-inputs">
@@ -145,14 +165,12 @@
             placeholder="What do you want to ask the DM?"
             value={q.question}
             oninput={(e) => handleInput(i, 'question', e.currentTarget.value)}
-            onblur={() => saveQuestions()}
           />
           <textarea
             class="answer-input"
             placeholder="DM's answer (or your notes)"
             value={q.answer}
             oninput={(e) => handleInput(i, 'answer', e.currentTarget.value)}
-            onblur={() => saveQuestions()}
           ></textarea>
         </div>
         <div class="question-actions">
@@ -183,7 +201,8 @@
         </div>
       </div>
     {/each}
-  </div>
+    </div>
+  {/if}
 </div>
 
 <style lang="less">
@@ -195,17 +214,42 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--t5e-primary-accent-color, #4b4a44);
+    color: var(--t5e-light-color, #f0f0e0);
+    border-radius: 4px;
 
     h3 {
       margin: 0;
       font-size: 1.2rem;
+      flex: 1;
+    }
+
+    .collapse-toggle {
+      background: none;
+      border: none;
+      color: var(--t5e-light-color, #f0f0e0);
+      cursor: pointer;
+      padding: 0.25rem;
+      margin-right: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      &:hover {
+        opacity: 0.8;
+      }
+
+      i {
+        font-size: 1rem;
+      }
     }
 
     .add-question-btn {
       padding: 0.25rem 0.75rem;
       background: var(--t5e-primary-accent-color, #4b4a44);
-      color: white;
+      color: var(--t5e-light-color, #f0f0e0);
+      border: 1px solid var(--t5e-light-color, #f0f0e0);
       border: none;
       border-radius: 3px;
       cursor: pointer;
