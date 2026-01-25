@@ -108,17 +108,22 @@
     return rawPlans.map((plan) => sanitizePlan(plan));
   }
 
-  function sanitizePlan(rawPlan: TurnPlan): TurnPlan {
+  function sanitizePlan(rawPlan: any): TurnPlan {
+    const actions = mergeFeatureArrays(rawPlan.actions, rawPlan.action);
+    const bonusActions = mergeFeatureArrays(rawPlan.bonusActions, rawPlan.bonusAction);
+    const reactions = mergeFeatureArrays(rawPlan.reactions);
+    const additional = cloneFeatureArray(rawPlan.additionalFeatures ?? []);
+
     return {
-      ...rawPlan,
+      id: rawPlan.id ?? foundry.utils.randomID(),
+      name: rawPlan.name ?? FoundryAdapter.localize('TURN_PREP.TurnPlans.PlanLabel'),
       trigger: rawPlan.trigger ?? '',
+      actions,
+      bonusActions,
+      reactions,
       movement: rawPlan.movement ?? '',
       roleplay: rawPlan.roleplay ?? '',
-      action: cloneFeature(rawPlan.action),
-      bonusAction: cloneFeature(rawPlan.bonusAction),
-      additionalFeatures: (rawPlan.additionalFeatures ?? [])
-        .map((feature) => cloneFeature(feature))
-        .filter((feature): feature is SelectedFeature => !!feature),
+      additionalFeatures: additional,
       categories: Array.isArray(rawPlan.categories) ? [...rawPlan.categories] : [],
     };
   }
@@ -131,6 +136,22 @@
       itemType: feature.itemType,
       actionType: feature.actionType,
     };
+  }
+
+  function cloneFeatureArray(features?: SelectedFeature[] | null): SelectedFeature[] {
+    if (!Array.isArray(features)) return [];
+    return features
+      .map((feature) => cloneFeature(feature))
+      .filter((feature): feature is SelectedFeature => !!feature);
+  }
+
+  function mergeFeatureArrays(arrayValue?: SelectedFeature[] | null, legacyValue?: SelectedFeature | null): SelectedFeature[] {
+    const merged = cloneFeatureArray(arrayValue);
+    const legacy = cloneFeature(legacyValue);
+    if (legacy) {
+      merged.push(legacy);
+    }
+    return merged;
   }
 
   function cancelPendingSave(flush = false) {
@@ -161,8 +182,9 @@
       id: foundry.utils.randomID(),
       name: `${FoundryAdapter.localize('TURN_PREP.TurnPlans.PlanLabel')} ${plans.length + 1}`,
       trigger: '',
-      action: null,
-      bonusAction: null,
+      actions: [],
+      bonusActions: [],
+      reactions: [],
       movement: '',
       roleplay: '',
       additionalFeatures: [],
@@ -178,10 +200,7 @@
   }
 
   function getActionFeatures(plan: TurnPlan): DisplayFeature[] {
-    const features: SelectedFeature[] = [];
-    if (plan.action) {
-      features.push(plan.action);
-    }
+    const features: SelectedFeature[] = Array.isArray(plan.actions) ? plan.actions : [];
     const additional = (plan.additionalFeatures ?? []).filter(
       (feature) => normalizeActionType(feature.actionType) === 'action'
     );
@@ -192,10 +211,7 @@
   }
 
   function getBonusActionFeatures(plan: TurnPlan): DisplayFeature[] {
-    const features: SelectedFeature[] = [];
-    if (plan.bonusAction) {
-      features.push(plan.bonusAction);
-    }
+    const features: SelectedFeature[] = Array.isArray(plan.bonusActions) ? plan.bonusActions : [];
     const additional = (plan.additionalFeatures ?? []).filter(
       (feature) => normalizeActionType(feature.actionType) === 'bonus'
     );
@@ -375,25 +391,22 @@
     const updated = [...plans];
     const plan = {
       ...updated[index],
-      additionalFeatures: [...updated[index].additionalFeatures]
+      actions: [...(updated[index].actions ?? [])],
+      bonusActions: [...(updated[index].bonusActions ?? [])],
+      reactions: [...(updated[index].reactions ?? [])],
+      additionalFeatures: [...(updated[index].additionalFeatures ?? [])]
     };
 
     if (target === 'action') {
-      if (plan.action?.itemId === featureId) {
-        plan.action = null;
-      } else {
-        plan.additionalFeatures = plan.additionalFeatures.filter(
-          (feature) => !(feature.itemId === featureId && normalizeActionType(feature.actionType) === 'action')
-        );
-      }
+      plan.actions = plan.actions.filter((feature) => feature.itemId !== featureId);
+      plan.additionalFeatures = plan.additionalFeatures.filter(
+        (feature) => !(feature.itemId === featureId && normalizeActionType(feature.actionType) === 'action')
+      );
     } else if (target === 'bonusAction') {
-      if (plan.bonusAction?.itemId === featureId) {
-        plan.bonusAction = null;
-      } else {
-        plan.additionalFeatures = plan.additionalFeatures.filter(
-          (feature) => !(feature.itemId === featureId && normalizeActionType(feature.actionType) === 'bonus')
-        );
-      }
+      plan.bonusActions = plan.bonusActions.filter((feature) => feature.itemId !== featureId);
+      plan.additionalFeatures = plan.additionalFeatures.filter(
+        (feature) => !(feature.itemId === featureId && normalizeActionType(feature.actionType) === 'bonus')
+      );
     } else {
       plan.additionalFeatures = plan.additionalFeatures.filter((feature) => feature.itemId !== featureId);
     }

@@ -46,12 +46,13 @@ export interface TurnPlan {
   trigger: string;
 
   /** Action economy allocations */
-  action: SelectedFeature | null;
-  bonusAction: SelectedFeature | null;
+  actions: SelectedFeature[];
+  bonusActions: SelectedFeature[];
+  reactions: SelectedFeature[];
   movement: string; // Free text movement description
   roleplay: string; // Free text roleplay description
 
-  /** Additional features that modify the main action */
+  /** Additional features that modify or supplement the turn */
   additionalFeatures: SelectedFeature[];
 
   /** Category tags for organizing plans (e.g., "Attack", "Healing", "Control") */
@@ -116,11 +117,14 @@ export interface TurnSnapshot {
   /** Plan name from when it was saved */
   planName: string;
 
-  /** Snapshot of the action used (name + ID for recovery) */
-  action: SnapshotFeature | null;
+  /** Snapshot of the actions used */
+  actions: SnapshotFeature[];
 
-  /** Snapshot of the bonus action used */
-  bonusAction: SnapshotFeature | null;
+  /** Snapshot of the bonus actions used */
+  bonusActions: SnapshotFeature[];
+
+  /** Snapshot of the reactions queued within the plan */
+  reactions: SnapshotFeature[];
 
   /** Movement description from the plan */
   movement: string;
@@ -272,7 +276,7 @@ export type TurnPrepDataChangeCallback = (
 export type FeatureSelectedCallback = (
   actor: Actor,
   feature: SelectedFeature,
-  targetField: 'action' | 'bonusAction' | 'additionalFeatures'
+  targetField: 'actions' | 'bonusActions' | 'additionalFeatures'
 ) => void;
 
 /**

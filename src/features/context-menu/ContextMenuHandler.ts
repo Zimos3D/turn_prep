@@ -16,15 +16,10 @@
 
 import { info, debug, warn } from '../../utils/logging';
 import { FoundryAdapter } from '../../foundry/FoundryAdapter';
-import { MODULE_ID } from '../../constants';
-import { generateId } from '../../utils/data';
-import type {
-  TurnPlanFeature,
-  TurnPlan,
-  Feature,
-  ActivationType,
-} from '../../types/turn-prep.types';
+import { TurnPrepStorage } from '../data/TurnPrepStorage';
 import { FeatureSelector } from '../feature-selection/FeatureSelector';
+import { createTurnPlan, createReaction } from '../../utils/data';
+import type { TurnPrepData, TurnPlan, SelectedFeature } from '../../types';
 
 /**
  * Activity selection dialog option
@@ -134,11 +129,6 @@ export class ContextMenuHandler {
           return;
         }
 
-        // Skip items with no activities
-        if (activities.length === 0) {
-          return;
-        }
-
         debug(`Adding context menu for ${item.name} (${activities.length} activities)`);
 
         // Create the menu item following Tidy5e's structure
@@ -146,7 +136,7 @@ export class ContextMenuHandler {
           name: 'Add to Turn Prep',
           icon: '<i class="fas fa-plus fa-fw"></i>',
           group: 'customize', // Use Tidy5e's customize group
-          condition: () => activities.length > 0,
+          condition: () => true,
           callback: async (li?: HTMLElement) => {
             try {
               debug(`Adding ${item.name} to turn prep`);
@@ -237,11 +227,6 @@ export class ContextMenuHandler {
 
     // Get activities from the item
     const activities = FeatureSelector.getActivitiesForItem(item);
-    if (activities.length === 0) {
-      debug(`No activities found for item ${item.name}`);
-      return; // No activities, don't add menu item
-    }
-
     debug(`Found ${activities.length} activities for ${item.name}`);
 
     // Add "Add to Turn Prep" menu option
@@ -268,6 +253,11 @@ export class ContextMenuHandler {
     debug(`Handling add to turn prep for item: ${item.name}`);
 
     try {
+      if (!activities || activities.length === 0) {
+        await ContextMenuHandler.addFeatureToField(actor, item, null, 'other');
+        return;
+      }
+
       // If only one activity, add directly
       if (activities.length === 1) {
         const activity = activities[0];
@@ -379,74 +369,91 @@ export class ContextMenuHandler {
     actor: Actor,
     item: Item,
     activity: any,
-    activationType: string
+    activationType: string | undefined
   ): Promise<void> {
-    debug(`Adding feature to field: ${item.name} (${activationType})`);
+    const normalizedType = activationType && activationType !== 'other'
+      ? FeatureSelector.getActivationType(activationType)
+      : (activationType ?? 'other');
+    debug(`Adding feature to field: ${item.name} (${normalizedType})`);
 
-    // Get or create the turn plan
-    const storage = await ContextMenuHandler.getActorTurnPrepStorage(actor);
-    let currentPlan = storage.getCurrentTurnPlan();
-
-    if (!currentPlan) {
-      currentPlan = {
-        name: `Turn Plan - ${new Date().toLocaleTimeString()}`,
-        actions: [],
-        bonusActions: [],
-        movement: '',
-        reactions: [],
-        trigger: '',
-        roleplay: '',
-        additionalFeatures: [],
-        notes: '',
-        timestamp: Date.now(),
+    try {
+      const feature: SelectedFeature = {
+        itemId: item.id as string,
+        itemName: item.name ?? 'Unknown Feature',
+        itemType: item.type ?? 'item',
+        actionType: normalizedType,
       };
-      storage.saveTurnPlan(currentPlan);
-    }
 
-    // Create feature object
-    const feature: TurnPlanFeature = {
-      id: generateId(),
-      sourceItemId: item.id as string,
-      sourceName: item.name as string,
-      activityId: activity.id || 'default',
-      activationType,
-    };
+      const turnPrepData = await ContextMenuHandler.ensureTurnPrepData(actor);
+      const targetPlan: TurnPlan = turnPrepData.turnPlans[0];
 
-    // Add to appropriate field based on activation type
-    switch (activationType) {
-      case 'action':
-        currentPlan.actions.push(feature);
-        break;
-      case 'bonus':
-        currentPlan.bonusActions.push(feature);
-        break;
-      case 'reaction':
-        // Reactions are stored separately, not in the current turn plan
-        // Get the full turn prep data and add to reactions array
-        const turnPrepData = await actor.getFlag(MODULE_ID, 'turnPrepData') || {};
-        if (!turnPrepData.reactions) {
-          turnPrepData.reactions = [];
+      switch (normalizedType) {
+        case 'action':
+          targetPlan.actions = targetPlan.actions ?? [];
+          targetPlan.actions.push(feature);
+          break;
+        case 'bonus':
+          targetPlan.bonusActions = targetPlan.bonusActions ?? [];
+          targetPlan.bonusActions.push(feature);
+          break;
+        case 'reaction': {
+          const reaction = createReaction('', feature);
+          turnPrepData.reactions.push(reaction);
+          await TurnPrepStorage.save(actor, turnPrepData);
+          ui.notifications?.info(`Added ${item.name} to reactions`);
+          Hooks.callAll('turnprepAddedFeature', {
+            actor,
+            item,
+            feature: reaction,
+            isReaction: true,
+          });
+          return;
         }
-        // Create a reaction object with trigger field
-        const reaction = {
-          ...feature,
-          trigger: '', // User will fill this in via the UI
-        };
-        turnPrepData.reactions.push(reaction);
-        await actor.setFlag(MODULE_ID, 'turnPrepData', turnPrepData);
-        ui.notifications?.info(`Added ${item.name} to reactions`);
-        Hooks.callAll('turnprepAddedFeature', { actor, item, feature: reaction, isReaction: true });
-        return; // Early return for reactions
-      default:
-        currentPlan.additionalFeatures.push(feature);
+        default:
+          targetPlan.additionalFeatures = targetPlan.additionalFeatures ?? [];
+          targetPlan.additionalFeatures.push(feature);
+      }
+
+      await TurnPrepStorage.save(actor, turnPrepData);
+      ui.notifications?.info(`Added ${item.name} to turn prep (${normalizedType})`);
+
+      Hooks.callAll('turnprepAddedFeature', { actor, item, feature, plan: targetPlan });
+    } catch (error) {
+      warn(`Failed to add feature to turn prep: ${error}`);
+      ui.notifications?.error(`Failed to add ${item.name} to turn prep`);
+    }
+  }
+
+  /**
+   * Ensure the actor has at least one turn plan and return the data structure
+   */
+  private static async ensureTurnPrepData(actor: Actor): Promise<TurnPrepData> {
+    const turnPrepData = await TurnPrepStorage.load(actor);
+
+    if (!Array.isArray(turnPrepData.turnPlans)) {
+      turnPrepData.turnPlans = [];
     }
 
-    // Save and notify
-    storage.saveTurnPlan(currentPlan);
-    ui.notifications?.info(`Added ${item.name} to turn prep (${activationType})`);
-    
-    // Trigger custom hook for UI updates (not for reactions, handled above)
-    Hooks.callAll('turnprepAddedFeature', { actor, item, feature, plan: currentPlan });
+    if (turnPrepData.turnPlans.length === 0) {
+      const planLabel = FoundryAdapter.localize('TURN_PREP.TurnPlans.PlanLabel') || 'Turn Plan';
+      const defaultPlan = createTurnPlan(`${planLabel} 1`, '');
+      turnPrepData.turnPlans.push(defaultPlan);
+      turnPrepData.activePlanIndex = 0;
+    }
+
+    if (!Array.isArray(turnPrepData.reactions)) {
+      turnPrepData.reactions = [];
+    }
+
+    turnPrepData.turnPlans = turnPrepData.turnPlans.map((plan) => ({
+      ...plan,
+      actions: Array.isArray(plan.actions) ? plan.actions : [],
+      bonusActions: Array.isArray(plan.bonusActions) ? plan.bonusActions : [],
+      reactions: Array.isArray(plan.reactions) ? plan.reactions : [],
+      additionalFeatures: Array.isArray(plan.additionalFeatures) ? plan.additionalFeatures : [],
+    }));
+
+    return turnPrepData;
   }
 
   /**
@@ -465,23 +472,6 @@ export class ContextMenuHandler {
     // This would be handled by the Svelte components with drag event handlers
     // Placeholder for future UI implementation
     debug('Drag & drop handlers registration placeholder');
-  }
-
-  /**
-   * Get or create the turn prep storage for an actor
-   */
-  private static async getActorTurnPrepStorage(actor: Actor): Promise<any> {
-    // Import TurnPrepStorage when ready
-    // For now, return a mock that saves to actor flags
-    return {
-      getCurrentTurnPlan: () => {
-        const data = actor.getFlag(MODULE_ID, 'currentTurnPlan');
-        return data as TurnPlan | null;
-      },
-      saveTurnPlan: async (plan: TurnPlan) => {
-        await actor.setFlag(MODULE_ID, 'currentTurnPlan', plan);
-      },
-    };
   }
 
   /**

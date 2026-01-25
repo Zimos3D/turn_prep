@@ -396,6 +396,8 @@ We don't need a roll button just a button to save to history and clear the field
 
 We have this working already but will still need to tie into the initiative system. When the player's turn ends, if they have an active plan, they should get a popup dialog asking if they want to save and clear their turn.
 
+> TODO (Phase 4 Save & Clear): When we revisit this dialog, prompt the player to confirm which action(s) and bonus action(s) from the multi-entry plan were actually used before we capture the history snapshot.
+
 **Q6.3**: How should the **history/favorites list** be displayed?
 - **Option A**: Accordion - click to expand each entry
 - **Option B**: Cards - all expanded by default

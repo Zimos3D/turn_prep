@@ -202,14 +202,36 @@ export function validateTurnPlan(plan: any, throwOnError: boolean = false): plan
       throw new Error('Turn plan must have a trigger description');
     }
 
-    // Validate optional feature references
-    if (!validateSelectedFeature(plan?.action, true)) {
-      throw new Error('Turn plan action is invalid');
+    // Validate feature collections
+    if (!Array.isArray(plan?.actions)) {
+      throw new Error('Turn plan actions must be an array');
     }
 
-    if (!validateSelectedFeature(plan?.bonusAction, true)) {
-      throw new Error('Turn plan bonusAction is invalid');
+    plan.actions.forEach((feature: any, index: number) => {
+      if (!validateSelectedFeature(feature, false)) {
+        throw new Error(`Turn plan actions contains invalid feature at index ${index}`);
+      }
+    });
+
+    if (!Array.isArray(plan?.bonusActions)) {
+      throw new Error('Turn plan bonusActions must be an array');
     }
+
+    plan.bonusActions.forEach((feature: any, index: number) => {
+      if (!validateSelectedFeature(feature, false)) {
+        throw new Error(`Turn plan bonusActions contains invalid feature at index ${index}`);
+      }
+    });
+
+    if (!Array.isArray(plan?.reactions)) {
+      throw new Error('Turn plan reactions must be an array');
+    }
+
+    plan.reactions.forEach((feature: any, index: number) => {
+      if (!validateSelectedFeature(feature, false)) {
+        throw new Error(`Turn plan reactions contains invalid feature at index ${index}`);
+      }
+    });
 
     if (!isNonEmptyString(plan?.movement)) {
       throw new Error('Turn plan must have a movement description');
@@ -222,6 +244,12 @@ export function validateTurnPlan(plan: any, throwOnError: boolean = false): plan
     if (!Array.isArray(plan?.additionalFeatures)) {
       throw new Error('Turn plan additionalFeatures must be an array');
     }
+
+    plan.additionalFeatures.forEach((feature: any, index: number) => {
+      if (!validateSelectedFeature(feature, false)) {
+        throw new Error(`Turn plan additionalFeatures contains invalid feature at index ${index}`);
+      }
+    });
 
     if (!isValidTagArray(plan?.categories)) {
       throw new Error('Turn plan categories must be an array of non-empty strings');
@@ -351,14 +379,35 @@ export function validateTurnSnapshot(snapshot: any): snapshot is TurnSnapshot {
       throw new Error('Snapshot must have a planName');
     }
 
-    // Optional features - can be null
-    if (snapshot?.action !== null && !validateSnapshotFeature(snapshot?.action)) {
-      throw new Error('Snapshot action is invalid');
+    if (!Array.isArray(snapshot?.actions)) {
+      throw new Error('Snapshot actions must be an array');
     }
 
-    if (snapshot?.bonusAction !== null && !validateSnapshotFeature(snapshot?.bonusAction)) {
-      throw new Error('Snapshot bonusAction is invalid');
+    snapshot.actions.forEach((feature: any, index: number) => {
+      if (!validateSnapshotFeature(feature)) {
+        throw new Error(`Snapshot actions contains invalid feature at index ${index}`);
+      }
+    });
+
+    if (!Array.isArray(snapshot?.bonusActions)) {
+      throw new Error('Snapshot bonusActions must be an array');
     }
+
+    snapshot.bonusActions.forEach((feature: any, index: number) => {
+      if (!validateSnapshotFeature(feature)) {
+        throw new Error(`Snapshot bonusActions contains invalid feature at index ${index}`);
+      }
+    });
+
+    if (!Array.isArray(snapshot?.reactions)) {
+      throw new Error('Snapshot reactions must be an array');
+    }
+
+    snapshot.reactions.forEach((feature: any, index: number) => {
+      if (!validateSnapshotFeature(feature)) {
+        throw new Error(`Snapshot reactions contains invalid feature at index ${index}`);
+      }
+    });
 
     if (!isNonEmptyString(snapshot?.movement)) {
       throw new Error('Snapshot movement must be non-empty string');
@@ -371,6 +420,12 @@ export function validateTurnSnapshot(snapshot: any): snapshot is TurnSnapshot {
     if (!Array.isArray(snapshot?.additionalFeatures)) {
       throw new Error('Snapshot additionalFeatures must be an array');
     }
+
+    snapshot.additionalFeatures.forEach((feature: any, index: number) => {
+      if (!validateSnapshotFeature(feature)) {
+        throw new Error(`Snapshot additionalFeatures contains invalid feature at index ${index}`);
+      }
+    });
 
     if (!isValidTagArray(snapshot?.categories)) {
       throw new Error('Snapshot categories must be valid tag array');

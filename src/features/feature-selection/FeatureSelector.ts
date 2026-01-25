@@ -416,6 +416,9 @@ export class FeatureSelector {
     if (normalized === 'special') {
       return ACTIVATION_TYPES.SPECIAL;
     }
+    if (normalized === 'other') {
+      return 'other';
+    }
 
     // Default to action for 'action' or unknown types
     return ACTIVATION_TYPES.ACTION;
