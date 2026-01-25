@@ -24,7 +24,27 @@
     onRemoveFeature?: (featureId: string) => void;
   }
 
-  const templateColumns = '1.75rem 2fr 5rem 3.125rem 5rem 5rem 1.6875rem';
+  const columnWidths = {
+    icon: '2.25rem',
+    feature: 'minmax(0, 1fr)',
+    uses: '5rem',
+    roll: '3.125rem',
+    formula: '5rem',
+    range: '5rem',
+    target: '5rem',
+    actions: '1.6875rem'
+  } as const;
+
+  const templateColumns = [
+    columnWidths.icon,
+    columnWidths.feature,
+    columnWidths.uses,
+    columnWidths.roll,
+    columnWidths.formula,
+    columnWidths.range,
+    columnWidths.target,
+    columnWidths.actions
+  ].join(' ');
   const defaultIcon = 'icons/svg/book.svg';
 
   let {
@@ -90,6 +110,16 @@
   }
 
   const noDetails = FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.NoDetails');
+
+  function hasLimitedUses(feature: DisplayFeature): boolean {
+    return feature.usesMax !== undefined && feature.usesMax !== null && feature.usesMax !== '';
+  }
+
+  function handlePendingActionsClick(event: MouseEvent) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    ui.notifications?.info(FoundryAdapter.localize('TURN_PREP.Messages.NotImplemented'));
+  }
 </script>
 
 <section
@@ -105,7 +135,11 @@
     onclick={toggleTable}
     onkeydown={handleHeaderKey}
   >
-    <div class="tidy-table-header-cell icon-column" aria-hidden="true"></div>
+    <div
+      class="tidy-table-header-cell icon-column"
+      aria-hidden="true"
+      style="--tidy-table-column-width: {columnWidths.icon};"
+    ></div>
     <div class="tidy-table-header-cell header-label-cell primary">
       <div class="button expand-button {expanded ? 'expanded' : ''}">
         <i class="fa-solid fa-chevron-right"></i>
@@ -113,22 +147,47 @@
       <h3>{title}</h3>
       <span class="table-header-count">{features.length}</span>
     </div>
-    <div class="tidy-table-header-cell" style="--tidy-table-column-width: 5rem;">
+    <div
+      class="tidy-table-header-cell"
+      data-tidy-column-key="uses"
+      style="--tidy-table-column-width: {columnWidths.uses};"
+    >
       {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Uses')}
     </div>
-    <div class="tidy-table-header-cell" style="--tidy-table-column-width: 3.125rem;">
+    <div
+      class="tidy-table-header-cell"
+      data-tidy-column-key="roll"
+      style="--tidy-table-column-width: {columnWidths.roll};"
+    >
       {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Roll')}
     </div>
-    <div class="tidy-table-header-cell" style="--tidy-table-column-width: 5rem;">
+    <div
+      class="tidy-table-header-cell"
+      data-tidy-column-key="formula"
+      style="--tidy-table-column-width: {columnWidths.formula};"
+    >
       {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Formula')}
     </div>
-    <div class="tidy-table-header-cell" style="--tidy-table-column-width: 5rem;">
+    <div
+      class="tidy-table-header-cell"
+      data-tidy-column-key="range"
+      style="--tidy-table-column-width: {columnWidths.range};"
+    >
       {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Range')}
     </div>
-    <div class="tidy-table-header-cell" style="--tidy-table-column-width: 5rem;">
+    <div
+      class="tidy-table-header-cell"
+      data-tidy-column-key="target"
+      style="--tidy-table-column-width: {columnWidths.target};"
+    >
       {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Target')}
     </div>
-    <div class="tidy-table-header-cell header-cell-actions" style="--tidy-table-column-width: 1.6875rem;" aria-label={FoundryAdapter.localize('TURN_PREP.Common.Actions')}>
+    <div
+      class="tidy-table-header-cell header-cell-actions"
+      data-tidy-column-key="actions"
+      style="--tidy-table-column-width: {columnWidths.actions};"
+      aria-label={FoundryAdapter.localize('TURN_PREP.Common.Actions')}
+    >
       &nbsp;
     </div>
   </header>
@@ -139,7 +198,7 @@
         {#if !features.length}
           <div class="tidy-table-row-container empty">
             <div class="tidy-table-row" style="--grid-template-columns: {templateColumns};">
-              <div class="tidy-table-cell primary" style="grid-column: span 7; justify-content: center;">
+              <div class="tidy-table-cell primary" style="grid-column: span 8; justify-content: center;">
                 {emptyMessage}
               </div>
             </div>
@@ -155,7 +214,7 @@
                   <img class="item-image" alt={feature.itemName} src={feature.icon || defaultIcon} />
                   <span class="roll-prompt"><i class="fa fa-dice-d20"></i></span>
                 </button>
-                <div class="tidy-table-cell item-label text-cell primary">
+                <div class="tidy-table-cell item-label text-cell primary" data-tidy-column-key="feature">
                   <button type="button" class="item-name" onclick={() => toggleRow(feature.rowKey)}>
                     <span class="cell-text">
                       <span class="cell-name">{feature.itemName}</span>
@@ -165,8 +224,12 @@
                     </span>
                   </button>
                 </div>
-                <div class="tidy-table-cell inline-uses">
-                  {#if feature.usesValue !== undefined || feature.usesMax !== undefined}
+                <div
+                  class="tidy-table-cell inline-uses"
+                  data-tidy-column-key="uses"
+                  style="--tidy-table-column-width: {columnWidths.uses};"
+                >
+                  {#if hasLimitedUses(feature)}
                     <input type="text" class="uninput uses-value" value={feature.usesValue ?? ''} readonly />
                     <span class="divider">/</span>
                     <span class="uses-max">{formatValue(feature.usesMax)}</span>
@@ -174,26 +237,47 @@
                     <span class="color-text-disabled">—</span>
                   {/if}
                 </div>
-                <div class="tidy-table-cell">
+                <div
+                  class="tidy-table-cell"
+                  data-tidy-column-key="roll"
+                  style="--tidy-table-column-width: {columnWidths.roll};"
+                >
                   <span>{formatValue(feature.rollLabel)}</span>
                 </div>
-                <div class="tidy-table-cell">
+                <div
+                  class="tidy-table-cell"
+                  data-tidy-column-key="formula"
+                  style="--tidy-table-column-width: {columnWidths.formula};"
+                >
                   <span>{formatValue(feature.formula)}</span>
                 </div>
-                <div class="tidy-table-cell">
+                <div
+                  class="tidy-table-cell"
+                  data-tidy-column-key="range"
+                  style="--tidy-table-column-width: {columnWidths.range};"
+                >
                   <span>{formatValue(feature.range)}</span>
                 </div>
-                <div class="tidy-table-cell">
+                <div
+                  class="tidy-table-cell"
+                  data-tidy-column-key="target"
+                  style="--tidy-table-column-width: {columnWidths.target};"
+                >
                   <span>{formatValue(feature.target)}</span>
                 </div>
-                <div class="tidy-table-cell tidy-table-actions">
+                <div
+                  class="tidy-table-cell tidy-table-actions"
+                  data-tidy-column-key="actions"
+                  style="--tidy-table-column-width: {columnWidths.actions};"
+                >
                   <button
                     type="button"
                     class="tidy-table-button"
-                    title={FoundryAdapter.localize('TURN_PREP.Common.Remove')}
-                    onclick={() => onRemoveFeature(feature.itemId)}
+                    title={FoundryAdapter.localize('TURN_PREP.Messages.NotImplemented')}
+                    aria-label={FoundryAdapter.localize('TURN_PREP.Common.Actions')}
+                    onclick={handlePendingActionsClick}
                   >
-                    <i class="fa-solid fa-trash"></i>
+                    <i class="fa-solid fa-ellipsis-vertical"></i>
                   </button>
                 </div>
               </div>
@@ -265,6 +349,14 @@
     .tidy-table-row-container.empty {
       background: transparent;
       margin-left: 0;
+    }
+
+    .tidy-table-cell.item-label {
+      justify-content: flex-start;
+
+      .item-name {
+        justify-content: flex-start;
+      }
     }
 
     .inline-uses {
