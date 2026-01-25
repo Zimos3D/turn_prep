@@ -2,7 +2,11 @@
   "TURN_PREP": {
     "Loading": "Loading...",
     "Common": {
-      "Loading": "Loading..."
+      "Loading": "Loading...",
+      "AddFeature": "Add Feature",
+      "Remove": "Remove",
+      "Actions": "Actions",
+      "ComingSoon": "Coming soon"
     },
     "Tabs": {
       "TurnPrep": "Turn Prep",
@@ -46,7 +50,23 @@
       "DuplicateTooltip": "Duplicate Plan",
       "SearchPlaceholder": "Search features...",
       "DeleteConfirm": "Delete Plan?",
-      "DeleteConfirmMessage": "Are you sure you want to delete this plan? This cannot be undone."
+      "DeleteConfirmMessage": "Are you sure you want to delete this plan? This cannot be undone.",
+      "Table": {
+        "Feature": "Feature",
+        "Type": "Type",
+        "Action": "Activation",
+        "Uses": "Uses",
+        "Roll": "Roll",
+        "Formula": "Formula",
+        "Range": "Range",
+        "Target": "Target",
+        "DisplayInChat": "Display in Chat",
+        "RollAction": "Roll",
+        "Empty": "No features added yet",
+        "NoDetails": "No additional details provided",
+        "MissingItem": "Feature unavailable",
+        "MissingItemDetails": "This feature references an item that is no longer on this actor."
+      }
     },
     "Reactions": {
       "Title": "Reaction Plans",

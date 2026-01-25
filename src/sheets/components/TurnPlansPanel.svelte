@@ -10,9 +10,12 @@
 
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { TurnPlan } from '../../types/turn-prep.types';
+  import type { TurnPlan, SelectedFeature } from '../../types/turn-prep.types';
   import { FoundryAdapter } from '../../foundry/FoundryAdapter';
   import { TurnPrepApiInstance as api } from '../../api/TurnPrepApi';
+  import TurnPlanFeatureTable, { type DisplayFeature } from './TurnPlanFeatureTable.svelte';
+  import { AUTO_SAVE_DEBOUNCE_MS, FLAG_SCOPE, FLAG_KEY_DATA } from '../../constants';
+  import { createEmptyTurnPrepData } from '../../utils/data';
 
   // Props
   let { actor }: { actor: any } = $props();
@@ -20,19 +23,137 @@
   // State
   let plans: TurnPlan[] = $state([]);
   let loading = $state(true);
+  let initialized = $state(false);
+
+  let saveTimeout: number | null = null;
+  const hookCleanups: Array<() => void> = [];
 
   // Initialize plans from actor flags
-  onMount(async () => {
+  onMount(() => {
+    loadPlans(true);
+
+    registerHook('updateActor', onActorUpdated);
+    registerHook('updateItem', onItemChanged);
+    registerHook('deleteItem', onItemChanged);
+
+    return () => {
+      cleanupHooks();
+      cancelPendingSave(true);
+    };
+  });
+
+  function registerHook(hookName: string, handler: (...args: any[]) => void) {
+    if (typeof Hooks === 'undefined') return;
+    Hooks.on(hookName, handler);
+    hookCleanups.push(() => Hooks.off(hookName, handler));
+  }
+
+  function cleanupHooks() {
+    while (hookCleanups.length) {
+      const dispose = hookCleanups.pop();
+      dispose?.();
+    }
+  }
+
+  function onActorUpdated(updatedActor: any, changes: any) {
+    if (!actor || updatedActor?.id !== actor.id) return;
+    if (hasTurnPrepFlagChange(changes)) {
+      loadPlans();
+    }
+  }
+
+  function hasTurnPrepFlagChange(changes: any): boolean {
+    const flagChanges = changes?.flags;
+    if (!flagChanges) return false;
+    const scopeChanges = flagChanges[FLAG_SCOPE];
+    if (!scopeChanges) return false;
+    return Object.prototype.hasOwnProperty.call(scopeChanges, FLAG_KEY_DATA);
+  }
+
+  function onItemChanged(item: any) {
+    if (!actor || !item?.actor || item.actor.id !== actor.id) return;
+    touchPlans();
+  }
+
+  function touchPlans() {
+    plans = plans.map((plan) => ({ ...plan }));
+  }
+
+  function loadPlans(showSpinner = false) {
+    if (!actor) {
+      plans = [];
+      loading = false;
+      initialized = true;
+      return;
+    }
+
+    if (showSpinner) {
+      loading = true;
+    }
+
     try {
       const turnPrepData = api.getTurnPrepData(actor);
-      plans = turnPrepData?.turnPlans || [];
-      loading = false;
+      plans = hydratePlans(turnPrepData?.turnPlans ?? []);
     } catch (error) {
       console.error('[TurnPlansPanel] Failed to load turn plans:', error);
       plans = [];
+      ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.TurnPlans.SaveError'));
+    } finally {
       loading = false;
+      initialized = true;
     }
-  });
+  }
+
+  function hydratePlans(rawPlans: TurnPlan[]): TurnPlan[] {
+    return rawPlans.map((plan) => sanitizePlan(plan));
+  }
+
+  function sanitizePlan(rawPlan: TurnPlan): TurnPlan {
+    return {
+      ...rawPlan,
+      trigger: rawPlan.trigger ?? '',
+      movement: rawPlan.movement ?? '',
+      roleplay: rawPlan.roleplay ?? '',
+      action: cloneFeature(rawPlan.action),
+      bonusAction: cloneFeature(rawPlan.bonusAction),
+      additionalFeatures: (rawPlan.additionalFeatures ?? [])
+        .map((feature) => cloneFeature(feature))
+        .filter((feature): feature is SelectedFeature => !!feature),
+      categories: Array.isArray(rawPlan.categories) ? [...rawPlan.categories] : [],
+    };
+  }
+
+  function cloneFeature(feature?: SelectedFeature | null): SelectedFeature | null {
+    if (!feature) return null;
+    return {
+      itemId: feature.itemId,
+      itemName: feature.itemName,
+      itemType: feature.itemType,
+      actionType: feature.actionType,
+    };
+  }
+
+  function cancelPendingSave(flush = false) {
+    const pending = !!saveTimeout;
+    if (saveTimeout) {
+      window.clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    if (flush && pending) {
+      void savePlans();
+    }
+  }
+
+  function scheduleAutoSave() {
+    if (!initialized) return;
+    if (saveTimeout) {
+      window.clearTimeout(saveTimeout);
+    }
+    saveTimeout = window.setTimeout(() => {
+      saveTimeout = null;
+      void savePlans();
+    }, AUTO_SAVE_DEBOUNCE_MS);
+  }
 
   // Create a new empty plan
   function createNewPlan() {
@@ -49,7 +170,237 @@
     };
     
     plans = [...plans, newPlan];
-    savePlans();
+    void savePlans();
+  }
+
+  function normalizeActionType(value?: string | null) {
+    return (value || '').toLowerCase();
+  }
+
+  function getActionFeatures(plan: TurnPlan): DisplayFeature[] {
+    const features: SelectedFeature[] = [];
+    if (plan.action) {
+      features.push(plan.action);
+    }
+    const additional = (plan.additionalFeatures ?? []).filter(
+      (feature) => normalizeActionType(feature.actionType) === 'action'
+    );
+    return [
+      ...buildFeatureList(plan, features, 'action-primary'),
+      ...buildFeatureList(plan, additional, 'action-extra')
+    ];
+  }
+
+  function getBonusActionFeatures(plan: TurnPlan): DisplayFeature[] {
+    const features: SelectedFeature[] = [];
+    if (plan.bonusAction) {
+      features.push(plan.bonusAction);
+    }
+    const additional = (plan.additionalFeatures ?? []).filter(
+      (feature) => normalizeActionType(feature.actionType) === 'bonus'
+    );
+    return [
+      ...buildFeatureList(plan, features, 'bonus-primary'),
+      ...buildFeatureList(plan, additional, 'bonus-extra')
+    ];
+  }
+
+  function getAdditionalFeatures(plan: TurnPlan): DisplayFeature[] {
+    const extras = (plan.additionalFeatures ?? []).filter((feature) => {
+      const type = normalizeActionType(feature.actionType);
+      return type !== 'action' && type !== 'bonus';
+    });
+    return buildFeatureList(plan, extras, 'additional');
+  }
+
+  function buildFeatureList(plan: TurnPlan, list: SelectedFeature[], keyPrefix: string): DisplayFeature[] {
+    return list
+      .map((feature, index) => buildDisplayFeature(plan, feature, `${keyPrefix}-${index}`))
+      .filter((feature): feature is DisplayFeature => !!feature);
+  }
+
+  function buildDisplayFeature(plan: TurnPlan, feature: SelectedFeature, keySuffix: string): DisplayFeature | null {
+    if (!feature?.itemId) return null;
+    const rowKey = `${plan.id}-${keySuffix}-${feature.itemId}`;
+    const item = actor?.items?.get?.(feature.itemId);
+
+    if (!item) {
+      return {
+        ...feature,
+        rowKey,
+        icon: null,
+        usesValue: null,
+        usesMax: null,
+        rollLabel: null,
+        formula: null,
+        range: null,
+        target: null,
+        summary: FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.MissingItemDetails'),
+        tags: [FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.MissingItem')],
+        isMissing: true,
+      };
+    }
+
+    const system = (item as any).system ?? {};
+
+    return {
+      ...feature,
+      rowKey,
+      itemName: item.name ?? feature.itemName,
+      itemType: item.type ?? feature.itemType,
+      icon: item.img ?? null,
+      usesValue: formatUsesValue(system),
+      usesMax: formatUsesMax(system),
+      rollLabel: formatRollLabel(item),
+      formula: formatFormula(system),
+      range: formatRange(system?.range),
+      target: formatTarget(system?.target),
+      summary: formatSummary(system?.description),
+      tags: buildTagList(feature, item, system),
+      isMissing: false,
+    };
+  }
+
+  function formatUsesValue(system: any): number | string | null {
+    const uses = system?.uses;
+    if (!uses) return null;
+    return typeof uses.value === 'number' || typeof uses.value === 'string' ? uses.value : null;
+  }
+
+  function formatUsesMax(system: any): number | string | null {
+    const uses = system?.uses;
+    if (!uses) return null;
+    return typeof uses.max === 'number' || typeof uses.max === 'string' ? uses.max : null;
+  }
+
+  function formatRollLabel(item: any): string | null {
+    const labels = item?.labels;
+    if (labels?.attack) return labels.attack;
+    if (labels?.save) return labels.save;
+    const activationType = item?.system?.activation?.type;
+    return activationType ? capitalize(activationType) : null;
+  }
+
+  function formatFormula(system: any): string | null {
+    const parts = system?.damage?.parts;
+    if (Array.isArray(parts) && parts.length) {
+      const formulas = parts
+        .map((part) => (Array.isArray(part) ? part[0] : part))
+        .filter((entry) => typeof entry === 'string' && entry.trim().length > 0);
+      if (formulas.length) {
+        return formulas.join(' + ');
+      }
+    }
+    if (typeof system?.formula === 'string' && system.formula.trim().length) {
+      return system.formula.trim();
+    }
+    return null;
+  }
+
+  function formatRange(range: any): string | null {
+    if (!range) return null;
+    if (typeof range === 'string') {
+      return range;
+    }
+    const segments: string[] = [];
+    if (typeof range.short === 'number') {
+      const long = typeof range.long === 'number' ? `/${range.long}` : '';
+      segments.push(`${range.short}${long}`);
+    } else if (typeof range.value === 'number') {
+      segments.push(`${range.value}`);
+    } else if (typeof range.value === 'string' && range.value.trim().length) {
+      segments.push(range.value.trim());
+    }
+    if (range.units) {
+      segments.push(range.units);
+    }
+    return segments.length ? segments.join(' ').trim() : null;
+  }
+
+  function formatTarget(target: any): string | null {
+    if (!target) return null;
+    const parts: string[] = [];
+    if (target.value) {
+      parts.push(String(target.value));
+    }
+    if (target.units) {
+      parts.push(capitalize(target.units));
+    }
+    if (target.type) {
+      parts.push(capitalize(target.type));
+    }
+    return parts.length ? parts.join(' ') : null;
+  }
+
+  function formatSummary(description: any): string | null {
+    const raw = typeof description === 'string' ? description : description?.value;
+    if (typeof raw !== 'string') return null;
+    const text = stripHtml(raw);
+    if (!text) return null;
+    return text.length > 320 ? `${text.slice(0, 317)}...` : text;
+  }
+
+  function stripHtml(value: string): string {
+    return value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function buildTagList(feature: SelectedFeature, item: any, system: any): string[] {
+    const tags = new Set<string>();
+    const actionType = normalizeActionType(feature.actionType);
+    if (actionType) {
+      tags.add(capitalize(actionType));
+    }
+    if (item?.type) {
+      tags.add(capitalize(item.type));
+    }
+    const activation = system?.activation?.type;
+    if (activation) {
+      tags.add(capitalize(activation));
+    }
+    if (system?.school?.abbr) {
+      tags.add(system.school.abbr.toUpperCase());
+    }
+    return Array.from(tags).filter(Boolean);
+  }
+
+  function capitalize(value: string): string {
+    if (!value) return value;
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
+
+  function handleRemoveFeature(planId: string, target: 'action' | 'bonusAction' | 'additional', featureId: string) {
+    const index = plans.findIndex((plan) => plan.id === planId);
+    if (index === -1) return;
+
+    const updated = [...plans];
+    const plan = {
+      ...updated[index],
+      additionalFeatures: [...updated[index].additionalFeatures]
+    };
+
+    if (target === 'action') {
+      if (plan.action?.itemId === featureId) {
+        plan.action = null;
+      } else {
+        plan.additionalFeatures = plan.additionalFeatures.filter(
+          (feature) => !(feature.itemId === featureId && normalizeActionType(feature.actionType) === 'action')
+        );
+      }
+    } else if (target === 'bonusAction') {
+      if (plan.bonusAction?.itemId === featureId) {
+        plan.bonusAction = null;
+      } else {
+        plan.additionalFeatures = plan.additionalFeatures.filter(
+          (feature) => !(feature.itemId === featureId && normalizeActionType(feature.actionType) === 'bonus')
+        );
+      }
+    } else {
+      plan.additionalFeatures = plan.additionalFeatures.filter((feature) => feature.itemId !== featureId);
+    }
+
+    updated[index] = plan;
+    plans = updated;
+    void savePlans();
   }
 
   // Delete a plan
@@ -62,18 +413,15 @@
     if (!confirmed) return;
 
     plans = plans.filter(p => p.id !== id);
-    savePlans();
+    void savePlans();
   }
 
   // Save all plans to actor flags
   async function savePlans() {
+    if (!actor) return;
     try {
-      const turnPrepData = api.getTurnPrepData(actor) || {
-        dmQuestions: [],
-        turnPlans: [],
-        reactions: []
-      };
-      turnPrepData.turnPlans = plans;
+      const turnPrepData = api.getTurnPrepData(actor) ?? createEmptyTurnPrepData();
+      turnPrepData.turnPlans = plans.map((plan) => sanitizePlan(plan));
       await api.saveTurnPrepData(actor, turnPrepData);
     } catch (error) {
       console.error('[TurnPlansPanel] Failed to save plans:', error);
@@ -116,6 +464,7 @@
                 class="plan-name"
                 bind:value={plan.name}
                 placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.PlanName')}
+                oninput={scheduleAutoSave}
               />
               <button
                 type="button"
@@ -128,6 +477,29 @@
             </div>
 
             <div class="plan-content">
+              <div class="plan-feature-sections">
+                <TurnPlanFeatureTable
+                  tableKey={`action-${plan.id}`}
+                  title={FoundryAdapter.localize('TURN_PREP.TurnPlans.Actions')}
+                  features={getActionFeatures(plan)}
+                  onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'action', featureId)}
+                />
+
+                <TurnPlanFeatureTable
+                  tableKey={`bonus-${plan.id}`}
+                  title={FoundryAdapter.localize('TURN_PREP.TurnPlans.BonusActions')}
+                  features={getBonusActionFeatures(plan)}
+                  onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'bonusAction', featureId)}
+                />
+
+                <TurnPlanFeatureTable
+                  tableKey={`additional-${plan.id}`}
+                  title={FoundryAdapter.localize('TURN_PREP.TurnPlans.AdditionalFeatures')}
+                  features={getAdditionalFeatures(plan)}
+                  onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'additional', featureId)}
+                />
+              </div>
+
               <div class="plan-field">
                 <label for={"tp-trigger-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Trigger')}</label>
                 <input
@@ -135,6 +507,7 @@
                   type="text"
                   bind:value={plan.trigger}
                   placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.TriggerPlaceholder')}
+                  oninput={scheduleAutoSave}
                 />
               </div>
 
@@ -144,6 +517,7 @@
                   id={"tp-movement-" + plan.id}
                   type="text"
                   bind:value={plan.movement}
+                  oninput={scheduleAutoSave}
                 />
               </div>
 
@@ -153,6 +527,7 @@
                   id={"tp-roleplay-" + plan.id}
                   bind:value={plan.roleplay}
                   rows="3"
+                  oninput={scheduleAutoSave}
                 ></textarea>
               </div>
             </div>
@@ -184,14 +559,14 @@
       align-items: center;
       gap: 0.5rem;
       padding: 0.5rem 1rem;
-      background: var(--t5e-primary-accent-color, #4a90e2);
-      color: white;
+      background: var(--t5e-primary-accent-color);
+      color: var(--t5e-light-color);
       border: none;
       border-radius: 4px;
       cursor: pointer;
 
       &:hover {
-        background: var(--t5e-primary-accent-hover-color, #357abd);
+        background: var(--t5e-primary-accent-hover-color);
       }
     }
   }
@@ -199,7 +574,7 @@
   .turn-plans-empty {
     text-align: center;
     padding: 2rem;
-    color: var(--t5e-tertiary-color, #666);
+    color: var(--t5e-tertiary-color);
   }
 
   .turn-plans-list {
@@ -209,8 +584,8 @@
   }
 
   .turn-plan-card {
-    background: var(--t5e-sheet-background, #fff);
-    border: 1px solid var(--t5e-faint-color, #ddd);
+    background: var(--t5e-sheet-background);
+    border: 1px solid var(--t5e-faint-color);
     border-radius: 4px;
     padding: 1rem;
 
@@ -225,7 +600,7 @@
         font-size: 1.1rem;
         font-weight: bold;
         padding: 0.5rem;
-        border: 1px solid var(--t5e-faint-color, #ddd);
+        border: 1px solid var(--t5e-faint-color);
         border-radius: 4px;
       }
 
@@ -233,12 +608,12 @@
         padding: 0.5rem;
         background: transparent;
         border: none;
-        color: var(--t5e-warning-accent-color, #dc3545);
+        color: var(--t5e-warning-accent-color);
         cursor: pointer;
         font-size: 1.1rem;
 
         &:hover {
-          color: var(--t5e-warning-accent-hover-color, #c82333);
+          color: var(--t5e-warning-accent-hover-color);
         }
       }
     }
@@ -248,6 +623,13 @@
       flex-direction: column;
       gap: 0.75rem;
 
+      .plan-feature-sections {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+
       .plan-field {
         display: flex;
         flex-direction: column;
@@ -256,19 +638,19 @@
         label {
           font-weight: 600;
           font-size: 0.9rem;
-          color: var(--t5e-primary-color, #000);
+          color: var(--t5e-primary-color);
         }
 
         input, textarea {
           padding: 0.5rem;
-          border: 1px solid var(--t5e-faint-color, #ddd);
+          border: 1px solid var(--t5e-faint-color);
           border-radius: 4px;
           font-family: inherit;
           font-size: 0.9rem;
 
           &:focus {
             outline: none;
-            border-color: var(--t5e-primary-accent-color, #4a90e2);
+            border-color: var(--t5e-primary-accent-color);
           }
         }
 
