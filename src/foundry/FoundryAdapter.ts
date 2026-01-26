@@ -136,6 +136,38 @@ export class FoundryAdapter {
   }
 
   // ========================================================================
+  // Text / HTML Helpers
+  // ========================================================================
+
+  /**
+   * Enrich HTML content using Foundry's TextEditor so shortcodes render like tidy5e.
+   * Falls back to the original string if enrichment fails.
+   */
+  static async enrichHtml(content?: string | null, options: Record<string, any> = {}): Promise<string | null> {
+    if (typeof content !== 'string' || !content.trim()) {
+      return content ?? null;
+    }
+
+    try {
+      const TextEditorClass = (globalThis as any)?.TextEditor;
+      if (typeof TextEditorClass?.enrichHTML !== 'function') {
+        return content;
+      }
+
+      const enrichOptions = {
+        async: true,
+        secrets: this.isGM(),
+        rollData: options.rollData ?? {},
+        ...options
+      };
+      return await TextEditorClass.enrichHTML(content, enrichOptions);
+    } catch (err) {
+      warn('[FoundryAdapter] Failed to enrich HTML content', err as Error);
+      return content;
+    }
+  }
+
+  // ========================================================================
   // Actor Operations
   // ========================================================================
 

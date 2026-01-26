@@ -60,6 +60,8 @@
         "Formula": "Formula",
         "Range": "Range",
         "Target": "Target",
+        "Activities": "Activities",
+        "Time": "Time",
         "DisplayInChat": "Display in Chat",
         "RollAction": "Roll",
         "Empty": "No features added yet",

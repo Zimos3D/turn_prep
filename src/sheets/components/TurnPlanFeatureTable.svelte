@@ -2,18 +2,48 @@
   import { FoundryAdapter } from '../../foundry/FoundryAdapter';
   import type { SelectedFeature } from '../../types/turn-prep.types';
 
+  export type RollDisplay = {
+    ability?: string | null;
+    value?: number | string | null;
+    label?: string | null;
+  };
+
+  export type DamageDisplayEntry = {
+    formula: string;
+    type?: string | null;
+    icon?: string | null;
+    ariaLabel?: string | null;
+  };
+
+  export type DisplayActivity = {
+    activityId: string;
+    rowKey: string;
+    name: string;
+    icon?: string | null;
+    usesValue?: number | string | null;
+    usesMax?: number | string | null;
+    timeLabel?: string | null;
+    formula?: string | null;
+    damageEntries?: DamageDisplayEntry[];
+  };
+
   export type DisplayFeature = SelectedFeature & {
     rowKey: string;
     icon?: string | null;
     usesValue?: number | string | null;
     usesMax?: number | string | null;
     rollLabel?: string | null;
+    rollDisplay?: RollDisplay | null;
     formula?: string | null;
     range?: string | null;
     target?: string | null;
     summary?: string | null;
+    descriptionHtml?: string | null;
+    descriptionRollData?: Record<string, unknown> | null;
     tags?: string[];
     isMissing?: boolean;
+    activities?: DisplayActivity[];
+    damageEntries?: DamageDisplayEntry[];
   };
 
   interface Props {
@@ -45,6 +75,24 @@
     columnWidths.target,
     columnWidths.actions
   ].join(' ');
+
+  const activityColumnWidths = {
+    icon: columnWidths.icon,
+    name: columnWidths.feature,
+    uses: columnWidths.uses,
+    time: columnWidths.roll,
+    formula: columnWidths.formula,
+    actions: columnWidths.actions
+  } as const;
+
+  const activityTemplateColumns = [
+    activityColumnWidths.icon,
+    activityColumnWidths.name,
+    activityColumnWidths.uses,
+    activityColumnWidths.time,
+    activityColumnWidths.formula,
+    activityColumnWidths.actions
+  ].join(' ');
   const defaultIcon = 'icons/svg/book.svg';
 
   let {
@@ -57,6 +105,8 @@
 
   let expanded = $state(true);
   let rowStates = $state<Record<string, boolean>>({});
+  let descriptionCache = $state<Record<string, string>>({});
+  const pendingDescriptions = new Set<string>();
 
   $effect(() => {
     // Drop row expansion state when features change
@@ -74,7 +124,48 @@
     if (changed) {
       rowStates = nextStates;
     }
+
+    // Drop description cache for removed rows
+    const cacheKeys = Object.keys(descriptionCache);
+    if (cacheKeys.some((key) => !validIds.has(key))) {
+      const nextCache: Record<string, string> = {};
+      for (const key of cacheKeys) {
+        if (validIds.has(key)) {
+          nextCache[key] = descriptionCache[key];
+        }
+      }
+      descriptionCache = nextCache;
+    }
+
+    for (const feature of features) {
+      if (!feature.descriptionHtml) continue;
+      if (descriptionCache[feature.rowKey]) continue;
+      if (pendingDescriptions.has(feature.rowKey)) continue;
+      pendingDescriptions.add(feature.rowKey);
+      void hydrateDescription(feature);
+    }
   });
+
+  async function hydrateDescription(feature: DisplayFeature) {
+    try {
+      const html = await FoundryAdapter.enrichHtml(feature.descriptionHtml ?? '', {
+        rollData: feature.descriptionRollData ?? undefined
+      });
+      if (!html) return;
+      // Ensure the feature is still present
+      if (!features.find((entry) => entry.rowKey === feature.rowKey)) {
+        return;
+      }
+      descriptionCache = {
+        ...descriptionCache,
+        [feature.rowKey]: html
+      };
+    } catch (error) {
+      console.warn('[TurnPlanFeatureTable] Failed to enrich description', error);
+    } finally {
+      pendingDescriptions.delete(feature.rowKey);
+    }
+  }
 
   function toggleTable() {
     expanded = !expanded;
@@ -111,8 +202,8 @@
 
   const noDetails = FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.NoDetails');
 
-  function hasLimitedUses(feature: DisplayFeature): boolean {
-    return feature.usesMax !== undefined && feature.usesMax !== null && feature.usesMax !== '';
+  function hasLimitedUses(entry: { usesMax?: number | string | null }): boolean {
+    return entry?.usesMax !== undefined && entry?.usesMax !== null && entry?.usesMax !== '';
   }
 
   function handlePendingActionsClick(event: MouseEvent) {
@@ -242,14 +333,47 @@
                   data-tidy-column-key="roll"
                   style="--tidy-table-column-width: {columnWidths.roll};"
                 >
-                  <span>{formatValue(feature.rollLabel)}</span>
+                  {#if feature.rollDisplay && (feature.rollDisplay.ability || feature.rollDisplay.value)}
+                    <div class="stacked roll-display">
+                      {#if feature.rollDisplay.ability}
+                        <span class="ability uppercase color-text-gold-emphasis font-label-medium">
+                          {feature.rollDisplay.ability}
+                        </span>
+                      {/if}
+                      {#if feature.rollDisplay.value}
+                        <span class="value font-label-medium">{feature.rollDisplay.value}</span>
+                      {/if}
+                    </div>
+                  {:else}
+                    <span>{formatValue(feature.rollLabel)}</span>
+                  {/if}
                 </div>
                 <div
                   class="tidy-table-cell"
                   data-tidy-column-key="formula"
                   style="--tidy-table-column-width: {columnWidths.formula};"
                 >
-                  <span>{formatValue(feature.formula)}</span>
+                  {#if feature.damageEntries && feature.damageEntries.length}
+                    <div class="damage-list">
+                      {#each feature.damageEntries as damageEntry, index (`${feature.rowKey}-damage-${index}`)}
+                        <div
+                          class="damage-formula-container"
+                          title={damageEntry.ariaLabel ?? `${damageEntry.formula}${damageEntry.type ? ` ${damageEntry.type}` : ''}`}
+                        >
+                          <span class="damage-formula truncate">{damageEntry.formula}</span>
+                          {#if damageEntry.icon}
+                            <span class="damage-icon" aria-label={damageEntry.ariaLabel ?? damageEntry.type}>
+                              <dnd5e-icon src={damageEntry.icon}></dnd5e-icon>
+                            </span>
+                          {:else if damageEntry.type}
+                            <span class="damage-type-label">{damageEntry.type}</span>
+                          {/if}
+                        </div>
+                      {/each}
+                    </div>
+                  {:else}
+                    <span>{formatValue(feature.formula)}</span>
+                  {/if}
                 </div>
                 <div
                   class="tidy-table-cell"
@@ -284,22 +408,163 @@
 
               <div class={`expandable ${rowStates[feature.rowKey] ? 'expanded' : ''}`} role="presentation">
                 <div role="presentation" class="expandable-child-animation-wrapper">
-                  <div class="editor-rendered-content">
-                    <p>{feature.summary || noDetails}</p>
-                    <div class="item-property-tags">
-                      {#each getTags(feature) as tag (tag)}
-                        <span class="tag"><span class="value">{tag}</span></span>
-                      {/each}
-                    </div>
-                    <div class="tidy-table-summary-actions">
-                      <button type="button" title={FoundryAdapter.localize('TURN_PREP.Common.ComingSoon')}>
-                        <i class="fa-solid fa-message-arrow-up-right"></i>
-                        {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.DisplayInChat')}
-                      </button>
-                      <button type="button" title={FoundryAdapter.localize('TURN_PREP.Common.ComingSoon')}>
-                        <i class="fas fa-dice-d20"></i>
-                        {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.RollAction')}
-                      </button>
+                  <div class="feature-row-details">
+                    {#if feature.activities && feature.activities.length}
+                      <section
+                        class="tidy-table inline-activities-table"
+                        data-tidy-section-key={`activities-${feature.rowKey}`}
+                        style="--grid-template-columns: {activityTemplateColumns}"
+                      >
+                        <header class="tidy-table-header-row theme-dark" data-tidy-sheet-part="table-header-row">
+                          <div class="tidy-table-header-cell header-label-cell primary">
+                            <h3>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Activities')}</h3>
+                            <span class="table-header-count">{feature.activities.length}</span>
+                          </div>
+                          <div
+                            class="tidy-table-header-cell"
+                            style="--tidy-table-column-width: {activityColumnWidths.uses};"
+                          >
+                            {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Uses')}
+                          </div>
+                          <div
+                            class="tidy-table-header-cell"
+                            style="--tidy-table-column-width: {activityColumnWidths.time};"
+                          >
+                            {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Time')}
+                          </div>
+                          <div
+                            class="tidy-table-header-cell"
+                            style="--tidy-table-column-width: {activityColumnWidths.formula};"
+                          >
+                            {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Formula')}
+                          </div>
+                          <div
+                            class="tidy-table-header-cell"
+                            style="--tidy-table-column-width: {activityColumnWidths.actions};"
+                            aria-label={FoundryAdapter.localize('TURN_PREP.Common.Actions')}
+                          >
+                            &nbsp;
+                          </div>
+                        </header>
+
+                        <div class="expandable expanded" role="presentation">
+                          <div role="presentation" class="expandable-child-animation-wrapper">
+                            <div class="item-table-body">
+                              {#each feature.activities as activity (activity.rowKey)}
+                                <div class="tidy-table-row-container" data-activity-id={activity.activityId}>
+                                  <div
+                                    class="tidy-table-row tidy-table-row-v2 activity"
+                                    style="--grid-template-columns: {activityTemplateColumns};"
+                                  >
+                                    <button type="button" class="tidy-table-row-use-button" title={activity.name}>
+                                      <img
+                                        class="item-image"
+                                        alt={activity.name}
+                                        src={activity.icon || feature.icon || defaultIcon}
+                                      />
+                                      <span class="roll-prompt"><i class="fa fa-dice-d20"></i></span>
+                                    </button>
+                                    <div class="tidy-table-cell item-label text-cell primary">
+                                      <span class="item-name">
+                                        <span class="cell-text">
+                                          <span class="cell-name">{activity.name}</span>
+                                        </span>
+                                      </span>
+                                    </div>
+                                    <div
+                                      class="tidy-table-cell inline-uses"
+                                      data-tidy-column-key="uses"
+                                      style="--tidy-table-column-width: {activityColumnWidths.uses};"
+                                    >
+                                      {#if hasLimitedUses(activity)}
+                                        <input type="text" class="uninput uses-value" value={activity.usesValue ?? ''} readonly />
+                                        <span class="divider">/</span>
+                                        <span class="uses-max">{formatValue(activity.usesMax)}</span>
+                                      {:else}
+                                        <span class="color-text-disabled">—</span>
+                                      {/if}
+                                    </div>
+                                    <div
+                                      class="tidy-table-cell"
+                                      data-tidy-column-key="time"
+                                      style="--tidy-table-column-width: {activityColumnWidths.time};"
+                                    >
+                                      <span>{formatValue(activity.timeLabel)}</span>
+                                    </div>
+                                    <div
+                                      class="tidy-table-cell"
+                                      data-tidy-column-key="formula"
+                                      style="--tidy-table-column-width: {activityColumnWidths.formula};"
+                                    >
+                                      {#if activity.damageEntries && activity.damageEntries.length}
+                                        <div class="damage-list">
+                                          {#each activity.damageEntries as damageEntry, index (`${activity.rowKey}-damage-${index}`)}
+                                            <div
+                                              class="damage-formula-container"
+                                              title={damageEntry.ariaLabel ?? `${damageEntry.formula}${damageEntry.type ? ` ${damageEntry.type}` : ''}`}
+                                            >
+                                              <span class="damage-formula truncate">{damageEntry.formula}</span>
+                                              {#if damageEntry.icon}
+                                                <span class="damage-icon" aria-label={damageEntry.ariaLabel ?? damageEntry.type}>
+                                                  <dnd5e-icon src={damageEntry.icon}></dnd5e-icon>
+                                                </span>
+                                              {:else if damageEntry.type}
+                                                <span class="damage-type-label">{damageEntry.type}</span>
+                                              {/if}
+                                            </div>
+                                          {/each}
+                                        </div>
+                                      {:else}
+                                        <span>{formatValue(activity.formula)}</span>
+                                      {/if}
+                                    </div>
+                                    <div
+                                      class="tidy-table-cell tidy-table-actions"
+                                      data-tidy-column-key="actions"
+                                      style="--tidy-table-column-width: {activityColumnWidths.actions};"
+                                    >
+                                      <button
+                                        type="button"
+                                        class="tidy-table-button"
+                                        title={FoundryAdapter.localize('TURN_PREP.Messages.NotImplemented')}
+                                        aria-label={FoundryAdapter.localize('TURN_PREP.Common.Actions')}
+                                        onclick={handlePendingActionsClick}
+                                      >
+                                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              {/each}
+                            </div>
+                          </div>
+                        </div>
+                      </section>
+                    {/if}
+
+                    <div class="editor-rendered-content">
+                      {#if descriptionCache[feature.rowKey]}
+                        <div class="feature-description rich-text" aria-label={feature.itemName}>
+                          {@html descriptionCache[feature.rowKey]}
+                        </div>
+                      {:else}
+                        <p>{feature.summary || noDetails}</p>
+                      {/if}
+                      <div class="item-property-tags">
+                        {#each getTags(feature) as tag (tag)}
+                          <span class="tag"><span class="value">{tag}</span></span>
+                        {/each}
+                      </div>
+                      <div class="tidy-table-summary-actions">
+                        <button type="button" title={FoundryAdapter.localize('TURN_PREP.Common.ComingSoon')}>
+                          <i class="fa-solid fa-message-arrow-up-right"></i>
+                          {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.DisplayInChat')}
+                        </button>
+                        <button type="button" title={FoundryAdapter.localize('TURN_PREP.Common.ComingSoon')}>
+                          <i class="fas fa-dice-d20"></i>
+                          {FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.RollAction')}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -351,6 +616,26 @@
       margin-left: 0;
     }
 
+    .feature-row-details {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .inline-activities-table {
+      padding: 0.5rem 0.75rem 0.75rem;
+      border-radius: 0.5rem;
+      background: var(--t5e-panel-muted-bg, rgba(0, 0, 0, 0.05));
+
+      .tidy-table-header-row {
+        cursor: default;
+      }
+
+      .tidy-table-row.activity {
+        gap: 0.25rem;
+      }
+    }
+
     .tidy-table-cell.item-label {
       justify-content: flex-start;
 
@@ -368,6 +653,52 @@
         color: inherit;
         pointer-events: none;
       }
+    }
+
+    .roll-display {
+      align-items: center;
+      gap: 0.125rem;
+    }
+
+    .damage-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+    }
+
+    .damage-formula-container {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .damage-formula {
+      max-width: 4rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .damage-icon dnd5e-icon {
+      width: 1rem;
+      height: 1rem;
+      display: inline-flex;
+    }
+
+    .damage-type-label {
+      font-size: 0.75rem;
+      text-transform: capitalize;
+      color: var(--t5e-text-muted, #7a7971);
+    }
+
+    .feature-description {
+      font-size: 0.875rem;
+      line-height: 1.35;
+      color: inherit;
+    }
+
+    .feature-description :global(p) {
+      margin: 0 0 0.5rem;
     }
 
     .tidy-table-summary-actions button {
