@@ -310,6 +310,14 @@ export class FoundryAdapter {
   }
 
   /**
+   * Get an item directly from an actor instance.
+   */
+  static getItemFromActor(actor: Actor | null | undefined, itemId: string | undefined): Item | null {
+    if (!actor || !itemId) return null;
+    return actor.items?.get(itemId) ?? null;
+  }
+
+  /**
    * Get all items of specific types from an actor
    * @param actorId - The actor ID
    * @param types - Array of item types to include (e.g., ['spell', 'feat'])
@@ -394,6 +402,76 @@ export class FoundryAdapter {
 
     // D&D 5e preparation flag
     return system.preparation?.prepared !== false;
+  }
+
+  /**
+   * Resolve an activity document from an item by ID.
+   */
+  static getActivityFromItem(item: Item | null | undefined, activityId: string | undefined): any | null {
+    if (!item || !activityId) {
+      return null;
+    }
+
+    const activities: any = (item as any).activities ?? null;
+    if (!activities) {
+      return null;
+    }
+
+    if (typeof activities.get === 'function') {
+      const doc = activities.get(activityId);
+      if (doc) {
+        return doc;
+      }
+    }
+
+    const candidates = Array.isArray(activities)
+      ? activities
+      : Array.isArray((activities as any).contents)
+      ? (activities as any).contents
+      : null;
+
+    if (!candidates) {
+      return null;
+    }
+
+    return (
+      candidates.find?.((entry: any) => entry?.id === activityId || entry?._id === activityId) ?? null
+    );
+  }
+
+  /**
+   * Trigger the Foundry item usage workflow.
+   */
+  static async useItemDocument(
+    item: Item | null | undefined,
+    options: { event?: Event; legacy?: boolean; chooseActivity?: boolean } = {}
+  ): Promise<any> {
+    if (!item || typeof (item as any).use !== 'function') {
+      warn('[FoundryAdapter] Cannot use item - invalid document provided');
+      return null;
+    }
+
+    const config = {
+      legacy: false,
+      ...options
+    };
+
+    return (item as any).use(config);
+  }
+
+  /**
+   * Trigger the Foundry activity usage workflow.
+   */
+  static async useActivityDocument(
+    activity: any,
+    options: { event?: Event } = {}
+  ): Promise<any> {
+    if (!activity || typeof activity.use !== 'function') {
+      warn('[FoundryAdapter] Cannot use activity - invalid document provided');
+      return null;
+    }
+
+    return activity.use({ ...options });
   }
 
   /**

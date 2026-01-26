@@ -966,6 +966,7 @@
                 <TurnPlanFeatureTable
                   tableKey={`action-${plan.id}`}
                   title={FoundryAdapter.localize('TURN_PREP.TurnPlans.Actions')}
+                  actor={actor}
                   features={getActionFeatures(plan)}
                   onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'action', featureId)}
                 />
@@ -973,6 +974,7 @@
                 <TurnPlanFeatureTable
                   tableKey={`bonus-${plan.id}`}
                   title={FoundryAdapter.localize('TURN_PREP.TurnPlans.BonusActions')}
+                  actor={actor}
                   features={getBonusActionFeatures(plan)}
                   onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'bonusAction', featureId)}
                 />
@@ -980,6 +982,7 @@
                 <TurnPlanFeatureTable
                   tableKey={`additional-${plan.id}`}
                   title={FoundryAdapter.localize('TURN_PREP.TurnPlans.AdditionalFeatures')}
+                  actor={actor}
                   features={getAdditionalFeatures(plan)}
                   onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'additional', featureId)}
                 />

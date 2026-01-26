@@ -68,6 +68,12 @@
         "NoDetails": "No additional details provided",
         "MissingItem": "Feature unavailable",
         "MissingItemDetails": "This feature references an item that is no longer on this actor."
+      },
+      "Messages": {
+        "ActorUnavailable": "Actor is no longer available for rolling.",
+        "ItemUnavailable": "That feature can no longer be found on this actor.",
+        "ActivityUnavailable": "That activity is no longer available.",
+        "RollFailed": "Unable to roll {feature}. Check the console for details."
       }
     },
     "Reactions": {

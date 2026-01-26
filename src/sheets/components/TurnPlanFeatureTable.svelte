@@ -49,6 +49,7 @@
   interface Props {
     tableKey: string;
     title: string;
+    actor?: any;
     features?: DisplayFeature[];
     emptyMessage?: string;
     onRemoveFeature?: (featureId: string) => void;
@@ -98,6 +99,7 @@
   let {
     title,
     tableKey,
+    actor = null,
     features = [],
     emptyMessage = FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Empty'),
     onRemoveFeature = () => void 0
@@ -211,6 +213,73 @@
     event?.stopPropagation();
     ui.notifications?.info(FoundryAdapter.localize('TURN_PREP.Messages.NotImplemented'));
   }
+
+  function getFeatureItem(feature: DisplayFeature) {
+    return FoundryAdapter.getItemFromActor(actor, feature?.itemId);
+  }
+
+  function notifyWarning(key: string, data?: Record<string, string | number>) {
+    const message = data
+      ? FoundryAdapter.localizeFormat(key, data)
+      : FoundryAdapter.localize(key);
+    ui.notifications?.warn(message);
+  }
+
+  async function handleFeatureRoll(feature: DisplayFeature, event: MouseEvent) {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    if (!actor) {
+      notifyWarning('TURN_PREP.TurnPlans.Messages.ActorUnavailable');
+      return;
+    }
+
+    const item = getFeatureItem(feature);
+    if (!item) {
+      notifyWarning('TURN_PREP.TurnPlans.Messages.ItemUnavailable');
+      return;
+    }
+
+    try {
+      await FoundryAdapter.useItemDocument(item, { event });
+    } catch (error) {
+      console.error('[TurnPlanFeatureTable] Failed to roll feature', feature.itemName, error);
+      notifyWarning('TURN_PREP.TurnPlans.Messages.RollFailed', { feature: feature.itemName });
+    }
+  }
+
+  async function handleActivityRoll(
+    feature: DisplayFeature,
+    activity: DisplayActivity,
+    event: MouseEvent
+  ) {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    if (!actor) {
+      notifyWarning('TURN_PREP.TurnPlans.Messages.ActorUnavailable');
+      return;
+    }
+
+    const item = getFeatureItem(feature);
+    if (!item) {
+      notifyWarning('TURN_PREP.TurnPlans.Messages.ItemUnavailable');
+      return;
+    }
+
+    const activityDoc = FoundryAdapter.getActivityFromItem(item, activity.activityId);
+    if (!activityDoc) {
+      notifyWarning('TURN_PREP.TurnPlans.Messages.ActivityUnavailable');
+      return;
+    }
+
+    try {
+      await FoundryAdapter.useActivityDocument(activityDoc, { event });
+    } catch (error) {
+      console.error('[TurnPlanFeatureTable] Failed to roll activity', activity.name, error);
+      notifyWarning('TURN_PREP.TurnPlans.Messages.RollFailed', { feature: activity.name });
+    }
+  }
 </script>
 
 <section
@@ -301,7 +370,12 @@
                 class={`tidy-table-row tidy-table-row-v2 ${rowStates[feature.rowKey] ? 'expanded' : ''} ${feature.isMissing ? 'missing' : ''}`}
                 style="--grid-template-columns: {templateColumns};"
               >
-                <button type="button" class="tidy-table-row-use-button" title={feature.itemName}>
+                <button
+                  type="button"
+                  class="tidy-table-row-use-button"
+                  title={feature.itemName}
+                  onclick={(event) => handleFeatureRoll(feature, event)}
+                >
                   <img class="item-image" alt={feature.itemName} src={feature.icon || defaultIcon} />
                   <span class="roll-prompt"><i class="fa fa-dice-d20"></i></span>
                 </button>
@@ -456,7 +530,13 @@
                                     class="tidy-table-row tidy-table-row-v2 activity"
                                     style="--grid-template-columns: {activityTemplateColumns};"
                                   >
-                                    <button type="button" class="tidy-table-row-use-button" title={activity.name}>
+                                    <button
+                                      type="button"
+                                      class="tidy-table-row-use-button"
+                                      title={activity.name}
+                                      onclick={(event) =>
+                                        handleActivityRoll(feature, activity, event)}
+                                    >
                                       <img
                                         class="item-image"
                                         alt={activity.name}
