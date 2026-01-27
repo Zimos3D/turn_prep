@@ -19,7 +19,7 @@ import { FoundryAdapter } from '../../foundry/FoundryAdapter';
 import { TurnPrepStorage } from '../data/TurnPrepStorage';
 import { FeatureSelector } from '../feature-selection/FeatureSelector';
 import { createTurnPlan, createReaction } from '../../utils/data';
-import type { TurnPrepData, TurnPlan, SelectedFeature } from '../../types';
+import type { TurnPrepData, TurnPlan, Reaction, SelectedFeature } from '../../types';
 
 /**
  * Activity selection dialog option
@@ -397,16 +397,37 @@ export class ContextMenuHandler {
           targetPlan.bonusActions.push(feature);
           break;
         case 'reaction': {
-          const reactionName = item.name ?? FoundryAdapter.localize('TURN_PREP.Reactions.ReactionName');
-          const reaction = createReaction(reactionName, '', [feature]);
-          turnPrepData.reactions.push(reaction);
+          if (!Array.isArray(turnPrepData.reactions)) {
+            turnPrepData.reactions = [];
+          }
+
+          let targetReaction: Reaction;
+
+          if (!turnPrepData.reactions.length) {
+            targetReaction = createReaction('', '', [feature]);
+            turnPrepData.reactions.push(targetReaction);
+          } else {
+            targetReaction = turnPrepData.reactions[0];
+            const existing = Array.isArray(targetReaction.reactionFeatures)
+              ? [...targetReaction.reactionFeatures]
+              : [];
+            existing.push({
+              itemId: feature.itemId,
+              itemName: feature.itemName,
+              itemType: feature.itemType,
+              actionType: feature.actionType,
+            });
+            targetReaction.reactionFeatures = existing;
+          }
+
           await TurnPrepStorage.save(actor, turnPrepData);
-          ui.notifications?.info(`Added ${item.name} to reactions`);
+          ui.notifications?.info(`Added ${item.name} to reaction plan`);
           Hooks.callAll('turnprepAddedFeature', {
             actor,
             item,
-            feature: reaction,
+            feature,
             isReaction: true,
+            reactionPlan: targetReaction,
           });
           return;
         }

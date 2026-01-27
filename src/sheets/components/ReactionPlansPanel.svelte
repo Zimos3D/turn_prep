@@ -131,7 +131,7 @@
 
     return {
       id: rawReaction?.id ?? foundry.utils.randomID(),
-      name: typeof rawReaction?.name === 'string' && rawReaction.name.trim().length
+      name: typeof rawReaction?.name === 'string'
         ? rawReaction.name
         : reactionsLabel,
       trigger: typeof rawReaction?.trigger === 'string' ? rawReaction.trigger : '',
@@ -177,10 +177,9 @@
   }
 
   function createNewReaction() {
-    const label = FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel') || 'Reaction';
     const newReaction: Reaction = {
       id: foundry.utils.randomID(),
-      name: `${label} ${reactions.length + 1}`,
+      name: '',
       trigger: '',
       reactionFeatures: [],
       additionalFeatures: [],
@@ -297,13 +296,22 @@
           {#each reactions as reaction (reaction.id)}
             <div class="reaction-card">
               <div class="reaction-header">
-                <input
-                  type="text"
-                  class="reaction-name"
-                  bind:value={reaction.name}
-                  placeholder={FoundryAdapter.localize('TURN_PREP.Reactions.ReactionName')}
-                  oninput={scheduleAutoSave}
-                />
+                <div class="reaction-name-row">
+                  <label
+                    class="reaction-trigger-label"
+                    for={"reaction-name-" + reaction.id}
+                  >
+                    {FoundryAdapter.localize('TURN_PREP.Reactions.Trigger')}
+                  </label>
+                  <input
+                    id={"reaction-name-" + reaction.id}
+                    type="text"
+                    class="reaction-name"
+                    bind:value={reaction.name}
+                    placeholder={FoundryAdapter.localize('TURN_PREP.Reactions.TriggerPlaceholder')}
+                    oninput={scheduleAutoSave}
+                  />
+                </div>
                 <button
                   type="button"
                   class="delete-reaction-button"
@@ -315,18 +323,6 @@
               </div>
 
               <div class="reaction-content">
-                <div class="reaction-field">
-                  <label for={"reaction-trigger-" + reaction.id}>
-                    {FoundryAdapter.localize('TURN_PREP.Reactions.Trigger')}
-                  </label>
-                  <input
-                    id={"reaction-trigger-" + reaction.id}
-                    type="text"
-                    bind:value={reaction.trigger}
-                    placeholder={FoundryAdapter.localize('TURN_PREP.Reactions.TriggerPlaceholder')}
-                    oninput={scheduleAutoSave}
-                  />
-                </div>
 
                 <TurnPlanFeatureTable
                   tableKey={`reaction-${reaction.id}`}
@@ -377,6 +373,10 @@
     padding: 1rem;
   }
 
+  .reaction-plans-panel :global(.turn-prep-panel-action-btn) {
+    margin-left: auto;
+  }
+
   .reaction-plans-empty {
     text-align: center;
     padding: 2rem;
@@ -401,13 +401,32 @@
       gap: 0.5rem;
       margin-bottom: 1rem;
 
+      .reaction-name-row {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .reaction-trigger-label {
+        white-space: nowrap;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--t5e-primary-color);
+      }
+
       .reaction-name {
         flex: 1;
-        font-size: 1.05rem;
-        font-weight: 600;
-        padding: 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        padding: 0.45rem 0.6rem;
         border: 1px solid var(--t5e-faint-color);
         border-radius: 4px;
+
+        &:focus {
+          outline: none;
+          border-color: var(--t5e-primary-accent-color);
+        }
       }
 
       .delete-reaction-button {
@@ -428,31 +447,6 @@
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
-
-      .reaction-field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-
-        label {
-          font-weight: 600;
-          font-size: 0.9rem;
-          color: var(--t5e-primary-color);
-        }
-
-        input {
-          padding: 0.5rem;
-          border: 1px solid var(--t5e-faint-color);
-          border-radius: 4px;
-          font-family: inherit;
-          font-size: 0.9rem;
-
-          &:focus {
-            outline: none;
-            border-color: var(--t5e-primary-accent-color);
-          }
-        }
-      }
 
       .reaction-notes {
         border: 1px solid var(--t5e-faint-color);

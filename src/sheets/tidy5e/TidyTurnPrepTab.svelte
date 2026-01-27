@@ -35,7 +35,6 @@
   .turn-prep-panels {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
   }
 
   .panel-section {

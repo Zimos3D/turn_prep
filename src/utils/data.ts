@@ -341,14 +341,14 @@ export function createTurnPlan(name: string, trigger: string): TurnPlan {
  * @returns A new Reaction object
  */
 export function createReaction(
-  name: string,
-  trigger: string,
+  name: string = '',
+  trigger: string = '',
   initialFeatures: SelectedFeature[] = []
 ): Reaction {
   return {
     id: generateId(),
-    name,
-    trigger,
+    name: typeof name === 'string' ? name : '',
+    trigger: typeof trigger === 'string' ? trigger : '',
     reactionFeatures: Array.isArray(initialFeatures)
       ? initialFeatures.map((feature) => ({
           itemId: feature.itemId,

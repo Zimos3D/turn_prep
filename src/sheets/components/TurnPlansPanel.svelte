@@ -404,9 +404,9 @@
   :global(.turn-prep-panel-header) {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 1rem;
+    gap: 0.2rem;
+    padding: 0.25rem 0.5rem;
+    margin-bottom: 0.5rem;
     background: var(--t5e-primary-accent-color, #4b4a44);
     color: var(--t5e-light-color, #f0f0e0);
     border-radius: 4px;
@@ -460,7 +460,7 @@
   }
 
   .turn-plans-panel {
-    padding: 1rem;
+    padding: 0.5rem;
   }
 
   .turn-plans-empty {
@@ -472,7 +472,7 @@
   .turn-plans-list {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.5rem;
   }
 
   .turn-plan-card {
@@ -513,12 +513,12 @@
     .plan-content {
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 0.5rem;
 
       .plan-feature-sections {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 0.5rem;
         margin-bottom: 0.5rem;
       }
 
