@@ -27,7 +27,7 @@ export {
 } from '../../utils/data';
 
 import type { TurnPrepData, TurnPlan, SelectedFeature, Reaction } from '../../types';
-import { createTurnPlan } from '../../utils/data';
+import { createTurnPlan, createReaction } from '../../utils/data';
 
 /**
  * Validation methods for Turn Prep data
@@ -87,7 +87,9 @@ export function validateAndCorrectTurnPrepData(data: any): TurnPrepData {
       ? data.turnPlans.map((plan: any) => normalizeTurnPlan(plan))
       : [],
     activePlanIndex: typeof data.activePlanIndex === 'number' ? data.activePlanIndex : -1,
-    reactions: Array.isArray(data.reactions) ? data.reactions : [],
+    reactions: Array.isArray(data.reactions)
+      ? data.reactions.map((reaction: any) => normalizeReaction(reaction))
+      : [],
     history: Array.isArray(data.history) ? data.history : [],
     favorites: Array.isArray(data.favorites) ? data.favorites : [],
   };
@@ -114,6 +116,25 @@ function normalizeTurnPlan(plan: any): TurnPlan {
   normalized.bonusActions = normalizeFeatureArray(plan.bonusActions ?? plan.bonusAction);
   normalized.reactions = normalizeFeatureArray(plan.reactions);
   normalized.additionalFeatures = normalizeFeatureArray(plan.additionalFeatures);
+
+  return normalized;
+}
+
+function normalizeReaction(entry: any): Reaction {
+  const name = typeof entry?.name === 'string'
+    ? entry.name
+    : typeof entry?.feature?.itemName === 'string'
+      ? entry.feature.itemName
+      : 'Reaction';
+  const trigger = typeof entry?.trigger === 'string' ? entry.trigger : '';
+
+  const normalized = createReaction(name, trigger);
+  normalized.id = typeof entry?.id === 'string' ? entry.id : normalized.id;
+  normalized.reactionFeatures = normalizeFeatureArray(entry?.reactionFeatures ?? entry?.feature);
+  normalized.additionalFeatures = normalizeFeatureArray(entry?.additionalFeatures);
+  normalized.notes = typeof entry?.notes === 'string' ? entry.notes : '';
+  normalized.createdTime = typeof entry?.createdTime === 'number' ? entry.createdTime : normalized.createdTime;
+  normalized.isFavorite = typeof entry?.isFavorite === 'boolean' ? entry.isFavorite : false;
 
   return normalized;
 }

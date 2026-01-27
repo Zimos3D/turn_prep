@@ -302,16 +302,51 @@ export function validateReaction(
       throw new Error('Reaction must have a valid id');
     }
 
-    if (!isNonEmptyString(reaction?.trigger)) {
-      throw new Error('Reaction must have a trigger description');
+    if (!isNonEmptyString(reaction?.name)) {
+      const fallbackName = reaction?.feature?.itemName ?? 'Reaction';
+      reaction.name = typeof fallbackName === 'string' ? fallbackName : 'Reaction';
     }
 
-    if (!validateSelectedFeature(reaction?.feature, false)) {
-      throw new Error('Reaction must have a valid feature');
+    if (typeof reaction?.trigger !== 'string') {
+      reaction.trigger = '';
     }
+
+    if (!Array.isArray(reaction?.reactionFeatures)) {
+      if (validateSelectedFeature(reaction?.feature, false)) {
+        reaction.reactionFeatures = [reaction.feature];
+      } else {
+        reaction.reactionFeatures = [];
+      }
+    }
+
+    reaction.reactionFeatures = reaction.reactionFeatures.filter((feature: any, index: number) => {
+      if (!validateSelectedFeature(feature, false)) {
+        throw new Error(`Reaction reactionFeatures contains invalid feature at index ${index}`);
+      }
+      return true;
+    });
 
     if (!Array.isArray(reaction?.additionalFeatures)) {
-      throw new Error('Reaction additionalFeatures must be an array');
+      reaction.additionalFeatures = [];
+    }
+
+    reaction.additionalFeatures = reaction.additionalFeatures.filter((feature: any, index: number) => {
+      if (!validateSelectedFeature(feature, false)) {
+        throw new Error(`Reaction additionalFeatures contains invalid feature at index ${index}`);
+      }
+      return true;
+    });
+
+    if (typeof reaction?.notes !== 'string') {
+      reaction.notes = '';
+    }
+
+    if (!isValidTimestamp(reaction?.createdTime)) {
+      reaction.createdTime = Date.now();
+    }
+
+    if (typeof reaction?.isFavorite !== 'boolean') {
+      reaction.isFavorite = false;
     }
 
     return true;

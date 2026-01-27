@@ -397,7 +397,8 @@ export class ContextMenuHandler {
           targetPlan.bonusActions.push(feature);
           break;
         case 'reaction': {
-          const reaction = createReaction('', feature);
+          const reactionName = item.name ?? FoundryAdapter.localize('TURN_PREP.Reactions.ReactionName');
+          const reaction = createReaction(reactionName, '', [feature]);
           turnPrepData.reactions.push(reaction);
           await TurnPrepStorage.save(actor, turnPrepData);
           ui.notifications?.info(`Added ${item.name} to reactions`);

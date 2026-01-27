@@ -139,17 +139,17 @@
 </script>
 
 <div class="turn-prep-dm-questions">
-  <div class="questions-header">
+  <div class="turn-prep-panel-header">
     <button 
       type="button" 
-      class="collapse-toggle"
+      class="turn-prep-panel-toggle"
       onclick={() => collapsed = !collapsed}
       title={collapsed ? 'Expand' : 'Collapse'}
     >
       <i class="fas fa-chevron-{collapsed ? 'right' : 'down'}"></i>
     </button>
     <h3>DM Questions</h3>
-    <button type="button" class="add-question-btn" onclick={addQuestion}>
+    <button type="button" class="turn-prep-panel-action-btn" onclick={addQuestion}>
       <i class="fas fa-plus"></i> Add Question
     </button>
   </div>
@@ -210,11 +210,12 @@
     padding: 0.5rem;
   }
 
-  .questions-header {
+  :global(.turn-prep-panel-header) {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 0.5rem;
     padding: 0.5rem 0.75rem;
+    margin-bottom: 1rem;
     background: var(--t5e-primary-accent-color, #4b4a44);
     color: var(--t5e-light-color, #f0f0e0);
     border-radius: 4px;
@@ -224,44 +225,46 @@
       font-size: 1.2rem;
       flex: 1;
     }
+  }
 
-    .collapse-toggle {
-      background: none;
-      border: none;
-      color: var(--t5e-light-color, #f0f0e0);
-      cursor: pointer;
-      padding: 0.25rem;
-      margin-right: 0.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+  :global(.turn-prep-panel-toggle) {
+    width: 1.75rem;
+    height: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--t5e-light-color, #f0f0e0);
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.2s ease, opacity 0.2s ease;
 
-      &:hover {
-        opacity: 0.8;
-      }
-
-      i {
-        font-size: 1rem;
-      }
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
     }
 
-    .add-question-btn {
-      padding: 0.25rem 0.75rem;
-      background: var(--t5e-primary-accent-color, #4b4a44);
-      color: var(--t5e-light-color, #f0f0e0);
-      border: 1px solid var(--t5e-light-color, #f0f0e0);
-      border: none;
-      border-radius: 3px;
-      cursor: pointer;
+    i {
       font-size: 0.9rem;
+    }
+  }
 
-      &:hover {
-        background: var(--t5e-primary-accent-color-hover, #5a5850);
-      }
+  :global(.turn-prep-panel-action-btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: transparent;
+    color: var(--t5e-light-color, #f0f0e0);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s ease, color 0.2s ease;
 
-      i {
-        margin-right: 0.25rem;
-      }
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
     }
   }
 

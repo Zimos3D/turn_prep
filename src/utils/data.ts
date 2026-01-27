@@ -340,12 +340,27 @@ export function createTurnPlan(name: string, trigger: string): TurnPlan {
  * @param feature - The reaction feature
  * @returns A new Reaction object
  */
-export function createReaction(trigger: string, feature: SelectedFeature): Reaction {
+export function createReaction(
+  name: string,
+  trigger: string,
+  initialFeatures: SelectedFeature[] = []
+): Reaction {
   return {
     id: generateId(),
+    name,
     trigger,
-    feature,
+    reactionFeatures: Array.isArray(initialFeatures)
+      ? initialFeatures.map((feature) => ({
+          itemId: feature.itemId,
+          itemName: feature.itemName,
+          itemType: feature.itemType,
+          actionType: feature.actionType,
+        }))
+      : [],
     additionalFeatures: [],
+    notes: '',
+    createdTime: Date.now(),
+    isFavorite: false,
   };
 }
 

@@ -89,14 +89,26 @@ export interface Reaction {
   /** Unique identifier for this reaction */
   id: string;
 
+  /** Display name for the reaction plan */
+  name: string;
+
   /** Context trigger text (e.g., "When a foe attacks me") */
   trigger: string;
 
-  /** The reaction feature to use when triggered */
-  feature: SelectedFeature;
+  /** Reaction features that should be ready to use */
+  reactionFeatures: SelectedFeature[];
 
-  /** Additional features that modify the reaction */
+  /** Additional features that modify or support the reaction */
   additionalFeatures: SelectedFeature[];
+
+  /** Free-form notes for situational reminders */
+  notes: string;
+
+  /** Timestamp for sorting and auditing */
+  createdTime: number;
+
+  /** Favorite flag for quick access */
+  isFavorite: boolean;
 }
 
 // ============================================================================
