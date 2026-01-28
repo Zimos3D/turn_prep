@@ -13,7 +13,6 @@
     normalizeActionType
   } from './featureDisplay.helpers';
 
-  // Props
   let { actor }: { actor: any } = $props();
 
   // State
@@ -282,11 +281,11 @@
 </script>
 
 {#if loading}
-  <div class="turn-plans-loading">
+  <div class="turn-prep-panel-loading turn-plans-loading">
     <p>{FoundryAdapter.localize('TURN_PREP.Common.Loading')}</p>
   </div>
 {:else}
-  <div class="turn-plans-panel">
+  <div class="turn-prep-panel turn-plans-panel">
     <div class="turn-prep-panel-header">
       <button
         type="button"
@@ -309,17 +308,17 @@
 
     {#if !collapsed}
       {#if plans.length === 0}
-        <div class="turn-plans-empty">
+        <div class="turn-prep-panel-empty turn-plans-empty">
           <p>{FoundryAdapter.localize('TURN_PREP.TurnPlans.NoPlans')}</p>
         </div>
       {:else}
-        <div class="turn-plans-list">
+        <div class="turn-prep-panel-list turn-plans-list is-tight">
           {#each plans as plan (plan.id)}
-            <div class="turn-plan-card">
+            <div class="turn-prep-panel-card turn-plan-card">
               <div class="plan-header">
                 <input
                   type="text"
-                  class="plan-name"
+                  class="turn-prep-input plan-name"
                   bind:value={plan.name}
                   placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.PlanName')}
                   oninput={scheduleAutoSave}
@@ -361,31 +360,34 @@
                   />
                 </div>
 
-                <div class="plan-field">
+                <div class="plan-field turn-prep-field">
                   <label for={"tp-trigger-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Trigger')}</label>
                   <input
                     id={"tp-trigger-" + plan.id}
                     type="text"
+                    class="turn-prep-input"
                     bind:value={plan.trigger}
                     placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.TriggerPlaceholder')}
                     oninput={scheduleAutoSave}
                   />
                 </div>
 
-                <div class="plan-field">
+                <div class="plan-field turn-prep-field">
                   <label for={"tp-movement-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Movement')}</label>
                   <input
                     id={"tp-movement-" + plan.id}
                     type="text"
+                    class="turn-prep-input"
                     bind:value={plan.movement}
                     oninput={scheduleAutoSave}
                   />
                 </div>
 
-                <div class="plan-field">
+                <div class="plan-field turn-prep-field">
                   <label for={"tp-roleplay-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.RoleplayNotes')}</label>
                   <textarea
                     id={"tp-roleplay-" + plan.id}
+                    class="turn-prep-textarea"
                     bind:value={plan.roleplay}
                     rows="3"
                     oninput={scheduleAutoSave}
@@ -401,86 +403,7 @@
 {/if}
 
 <style lang="less">
-  :global(.turn-prep-panel-header) {
-    display: flex;
-    align-items: center;
-    gap: 0.2rem;
-    padding: 0.25rem 0.5rem;
-    margin-bottom: 0.5rem;
-    background: var(--t5e-primary-accent-color, #4b4a44);
-    color: var(--t5e-light-color, #f0f0e0);
-    border-radius: 4px;
-
-    h3 {
-      margin: 0;
-      font-size: 1.2rem;
-      flex: 1;
-    }
-  }
-
-  :global(.turn-prep-panel-toggle) {
-    width: 1.75rem;
-    height: 1.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.9);
-    background: rgba(255, 255, 255, 0.12);
-    color: var(--t5e-light-color, #f0f0e0);
-    cursor: pointer;
-    padding: 0;
-    transition: background 0.2s ease, opacity 0.2s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
-
-    i {
-      font-size: 0.9rem;
-    }
-  }
-
-  :global(.turn-prep-panel-action-btn) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.35rem 0.85rem;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.9);
-    background: transparent;
-    color: var(--t5e-light-color, #f0f0e0);
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.2s ease, color 0.2s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.15);
-    }
-  }
-
-  .turn-plans-panel {
-    padding: 0.5rem;
-  }
-
-  .turn-plans-empty {
-    text-align: center;
-    padding: 2rem;
-    color: var(--t5e-tertiary-color);
-  }
-
-  .turn-plans-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
   .turn-plan-card {
-    background: var(--t5e-sheet-background);
-    border: 1px solid var(--t5e-faint-color);
-    border-radius: 4px;
-    padding: 1rem;
-
     .plan-header {
       display: flex;
       align-items: center;
@@ -491,13 +414,10 @@
         flex: 1;
         font-size: 1.1rem;
         font-weight: bold;
-        padding: 0.5rem;
-        border: 1px solid var(--t5e-faint-color);
-        border-radius: 4px;
       }
 
       .delete-plan-button {
-        padding: 0.5rem;
+        padding: 0.25rem;
         background: transparent;
         border: none;
         color: var(--t5e-warning-accent-color);
@@ -521,41 +441,8 @@
         gap: 0.5rem;
         margin-bottom: 0.5rem;
       }
-
-      .plan-field {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-
-        label {
-          font-weight: 600;
-          font-size: 0.9rem;
-          color: var(--t5e-primary-color);
-        }
-
-        input, textarea {
-          padding: 0.5rem;
-          border: 1px solid var(--t5e-faint-color);
-          border-radius: 4px;
-          font-family: inherit;
-          font-size: 0.9rem;
-
-          &:focus {
-            outline: none;
-            border-color: var(--t5e-primary-accent-color);
-          }
-        }
-
-        textarea {
-          resize: vertical;
-          min-height: 60px;
-        }
-      }
     }
   }
 
-  .turn-plans-loading {
-    text-align: center;
-    padding: 2rem;
-  }
+  
 </style>

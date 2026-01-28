@@ -1,14 +1,176 @@
 /**
- * Panel Styles
- * 
- * Styles for DM Questions, Turn Plans, and Reactions panels.
- * 
- * TODO: Define styles for:
- * - Panel containers (background, borders, shadow)
- * - Panel headers and titles
- * - Repeated items within panels
- * - Spacing and layout
- * - Hover/active states
+ * Shared Panel Styles
+ *
+ * Consolidated selectors used across DM Questions, Turn Plans,
+ * and Reaction Plans so spacing tweaks can be made once.
  */
 
-// TODO: Add panel styles
+.turn-prep-panel {
+	padding: 0.5rem;
+}
+
+.turn-prep-panel-header {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.25rem 0.5rem;
+	margin-bottom: 0.5rem;
+	background: var(--t5e-primary-accent-color, #4b4a44);
+	color: var(--t5e-light-color, #f0f0e0);
+	border-radius: 4px;
+}
+
+.turn-prep-panel-header h3 {
+	margin: 0;
+	font-size: 1.2rem;
+	flex: 1;
+}
+
+.turn-prep-panel-toggle {
+	width: 1.75rem;
+	height: 1.75rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 999px;
+	border: 2px solid rgba(255, 255, 255, 0.9);
+	background: rgba(255, 255, 255, 0.12);
+	color: var(--t5e-light-color, #f0f0e0);
+	cursor: pointer;
+	padding: 0;
+	transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.turn-prep-panel-toggle:hover {
+	background: rgba(255, 255, 255, 0.2);
+}
+
+.turn-prep-panel-toggle i {
+	font-size: 0.9rem;
+}
+
+.turn-prep-panel-action-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.35rem 0.85rem;
+	border-radius: 4px;
+	border: 1px solid rgba(255, 255, 255, 0.9);
+	background: transparent;
+	color: var(--t5e-light-color, #f0f0e0);
+	cursor: pointer;
+	font-size: 0.9rem;
+	transition: background 0.2s ease, color 0.2s ease;
+	margin-left: auto;
+}
+
+.turn-prep-panel-action-btn:hover {
+	background: rgba(255, 255, 255, 0.15);
+}
+
+.turn-prep-panel-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.turn-prep-panel-list.is-tight {
+	gap: 0.25rem;
+}
+
+.turn-prep-panel-list.is-roomy {
+	gap: 0.75rem;
+}
+
+.turn-prep-panel-card {
+	background: var(--t5e-component-card-default, #fff);
+	border: 1px solid var(--t5e-faint-color, rgba(0, 0, 0, 0.15));
+	border-radius: 4px;
+	padding: 0.5rem;
+}
+
+.turn-prep-panel-empty,
+.turn-prep-panel-loading {
+	text-align: center;
+	padding: 1rem;
+	color: var(--t5e-tertiary-color, #7d7567);
+}
+
+.turn-prep-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.turn-prep-field label {
+	font-weight: 600;
+	font-size: 0.9rem;
+	color: var(--t5e-color-text-default, #3a352f);
+}
+
+.turn-prep-input,
+.turn-prep-textarea {
+	width: 100%;
+	padding: 0.45rem 0.6rem;
+	border: 1px solid var(--t5e-faint-color, rgba(0, 0, 0, 0.2));
+	border-radius: 4px;
+	font-family: inherit;
+	font-size: 0.9rem;
+}
+
+.turn-prep-input:focus,
+.turn-prep-textarea:focus {
+	outline: none;
+	border-color: var(--t5e-primary-accent-color, #4b4a44);
+}
+
+.turn-prep-textarea {
+	resize: vertical;
+	min-height: 60px;
+}
+
+.turn-prep-inline-label-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.turn-prep-inline-label-row label {
+	white-space: nowrap;
+	font-weight: 600;
+	font-size: 0.9rem;
+	color: var(--t5e-color-text-default, #3a352f);
+}
+
+.turn-prep-inline-label-row .turn-prep-input {
+	flex: 1;
+}
+
+.turn-prep-collapsible {
+	border: 1px solid var(--t5e-faint-color, rgba(0, 0, 0, 0.15));
+	border-radius: 4px;
+	padding: 0.5rem 0.75rem;
+	background: var(--t5e-panel-muted-bg, rgba(0, 0, 0, 0.03));
+}
+
+.turn-prep-collapsible__toggle {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.25rem 0;
+	background: none;
+	border: none;
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+	text-align: left;
+}
+
+.turn-prep-collapsible__toggle i {
+	font-size: 0.9rem;
+}
+
+.turn-prep-collapsible__body {
+	margin-top: 0.5rem;
+}

@@ -261,11 +261,11 @@
 </script>
 
 {#if loading}
-  <div class="reaction-plans-loading">
+  <div class="turn-prep-panel-loading reaction-plans-loading">
     <p>{FoundryAdapter.localize('TURN_PREP.Common.Loading')}</p>
   </div>
 {:else}
-  <div class="reaction-plans-panel">
+  <div class="turn-prep-panel reaction-plans-panel">
     <div class="turn-prep-panel-header">
       <button
         type="button"
@@ -288,17 +288,16 @@
 
     {#if !collapsed}
       {#if reactions.length === 0}
-        <div class="reaction-plans-empty">
+        <div class="turn-prep-panel-empty reaction-plans-empty">
           <p>{FoundryAdapter.localize('TURN_PREP.Reactions.NoReactions')}</p>
         </div>
       {:else}
-        <div class="reaction-plans-list">
+        <div class="turn-prep-panel-list reaction-plans-list">
           {#each reactions as reaction (reaction.id)}
-            <div class="reaction-card">
+            <div class="turn-prep-panel-card reaction-card">
               <div class="reaction-header">
-                <div class="reaction-name-row">
+                <div class="turn-prep-inline-label-row reaction-name-row">
                   <label
-                    class="reaction-trigger-label"
                     for={"reaction-name-" + reaction.id}
                   >
                     {FoundryAdapter.localize('TURN_PREP.Reactions.Trigger')}
@@ -306,7 +305,7 @@
                   <input
                     id={"reaction-name-" + reaction.id}
                     type="text"
-                    class="reaction-name"
+                    class="turn-prep-input reaction-name"
                     bind:value={reaction.name}
                     placeholder={FoundryAdapter.localize('TURN_PREP.Reactions.TriggerPlaceholder')}
                     oninput={scheduleAutoSave}
@@ -340,23 +339,25 @@
                   onRemoveFeature={(featureId) => handleRemoveFeature(reaction.id, 'additional', featureId)}
                 />
 
-                <div class="reaction-notes">
+                <div class={`turn-prep-collapsible reaction-notes ${isNotesCollapsed(reaction.id) ? '' : 'is-open'}`}>
                   <button
                     type="button"
-                    class="notes-toggle"
+                    class="turn-prep-collapsible__toggle notes-toggle"
                     onclick={() => toggleNotes(reaction.id)}
                   >
                     <i class="fas fa-chevron-{isNotesCollapsed(reaction.id) ? 'right' : 'down'}"></i>
                     <span>{FoundryAdapter.localize('TURN_PREP.Reactions.Notes')}</span>
                   </button>
                   {#if !isNotesCollapsed(reaction.id)}
-                    <textarea
-                      class="notes-input"
-                      bind:value={reaction.notes}
-                      placeholder={FoundryAdapter.localize('TURN_PREP.Reactions.NotesPlaceholder')}
-                      rows="3"
-                      oninput={scheduleAutoSave}
-                    ></textarea>
+                    <div class="turn-prep-collapsible__body">
+                      <textarea
+                        class="turn-prep-textarea notes-input"
+                        bind:value={reaction.notes}
+                        placeholder={FoundryAdapter.localize('TURN_PREP.Reactions.NotesPlaceholder')}
+                        rows="3"
+                        oninput={scheduleAutoSave}
+                      ></textarea>
+                    </div>
                   {/if}
                 </div>
               </div>
@@ -369,32 +370,7 @@
 {/if}
 
 <style lang="less">
-  .reaction-plans-panel {
-    padding: 1rem;
-  }
-
-  .reaction-plans-panel :global(.turn-prep-panel-action-btn) {
-    margin-left: auto;
-  }
-
-  .reaction-plans-empty {
-    text-align: center;
-    padding: 2rem;
-    color: var(--t5e-tertiary-color);
-  }
-
-  .reaction-plans-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
   .reaction-card {
-    background: var(--t5e-sheet-background);
-    border: 1px solid var(--t5e-faint-color);
-    border-radius: 4px;
-    padding: 1rem;
-
     .reaction-header {
       display: flex;
       align-items: center;
@@ -403,30 +379,12 @@
 
       .reaction-name-row {
         flex: 1;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-
-      .reaction-trigger-label {
-        white-space: nowrap;
-        font-weight: 600;
-        font-size: 0.9rem;
-        color: var(--t5e-primary-color);
       }
 
       .reaction-name {
         flex: 1;
         font-size: 0.95rem;
         font-weight: 500;
-        padding: 0.45rem 0.6rem;
-        border: 1px solid var(--t5e-faint-color);
-        border-radius: 4px;
-
-        &:focus {
-          outline: none;
-          border-color: var(--t5e-primary-accent-color);
-        }
       }
 
       .delete-reaction-button {
@@ -447,52 +405,6 @@
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
-
-      .reaction-notes {
-        border: 1px solid var(--t5e-faint-color);
-        border-radius: 4px;
-        padding: 0.5rem 0.75rem;
-        background: var(--t5e-panel-muted-bg, rgba(0, 0, 0, 0.03));
-
-        .notes-toggle {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.25rem 0;
-          background: none;
-          border: none;
-          font: inherit;
-          color: inherit;
-          cursor: pointer;
-          text-align: left;
-
-          i {
-            font-size: 0.9rem;
-          }
-        }
-
-        .notes-input {
-          margin-top: 0.5rem;
-          width: 100%;
-          padding: 0.5rem;
-          border: 1px solid var(--t5e-faint-color);
-          border-radius: 4px;
-          font-family: inherit;
-          font-size: 0.9rem;
-          resize: vertical;
-
-          &:focus {
-            outline: none;
-            border-color: var(--t5e-primary-accent-color);
-          }
-        }
-      }
     }
-  }
-
-  .reaction-plans-loading {
-    text-align: center;
-    padding: 2rem;
   }
 </style>

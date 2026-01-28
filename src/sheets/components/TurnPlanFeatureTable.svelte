@@ -659,8 +659,8 @@
 
 <style lang="less">
   .turn-plan-feature-table {
-    margin-bottom: 0.75rem;
-
+    margin-bottom: 0.25rem;
+    
     .tidy-table-header-row h3 {
       margin: 0;
       font-size: 0.85rem;

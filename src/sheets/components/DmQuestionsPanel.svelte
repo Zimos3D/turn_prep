@@ -138,7 +138,7 @@
   }
 </script>
 
-<div class="turn-prep-dm-questions">
+<div class="turn-prep-panel turn-prep-dm-questions">
   <div class="turn-prep-panel-header">
     <button 
       type="button" 
@@ -155,19 +155,19 @@
   </div>
 
   {#if !collapsed}
-    <div class="questions-list">
+    <div class="turn-prep-panel-list questions-list">
     {#each questions as q, i}
-      <div class="question-row">
+      <div class="turn-prep-panel-card question-row">
         <div class="question-inputs">
           <input
             type="text"
-            class="question-input"
+            class="turn-prep-input question-input"
             placeholder="What do you want to ask the DM?"
             value={q.question}
             oninput={(e) => handleInput(i, 'question', e.currentTarget.value)}
           />
           <textarea
-            class="answer-input"
+            class="turn-prep-textarea answer-input"
             placeholder="DM's answer (or your notes)"
             value={q.answer}
             oninput={(e) => handleInput(i, 'answer', e.currentTarget.value)}
@@ -206,82 +206,10 @@
 </div>
 
 <style lang="less">
-  .turn-prep-dm-questions {
-    padding: 0.5rem;
-  }
-
-  :global(.turn-prep-panel-header) {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 1rem;
-    background: var(--t5e-primary-accent-color, #4b4a44);
-    color: var(--t5e-light-color, #f0f0e0);
-    border-radius: 4px;
-
-    h3 {
-      margin: 0;
-      font-size: 1.2rem;
-      flex: 1;
-    }
-  }
-
-  :global(.turn-prep-panel-toggle) {
-    width: 1.75rem;
-    height: 1.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.9);
-    background: rgba(255, 255, 255, 0.12);
-    color: var(--t5e-light-color, #f0f0e0);
-    cursor: pointer;
-    padding: 0;
-    transition: background 0.2s ease, opacity 0.2s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
-
-    i {
-      font-size: 0.9rem;
-    }
-  }
-
-  :global(.turn-prep-panel-action-btn) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.35rem 0.85rem;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.9);
-    background: transparent;
-    color: var(--t5e-light-color, #f0f0e0);
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.2s ease, color 0.2s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.15);
-    }
-  }
-
-  .questions-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
   .question-row {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.5rem;
-    padding: 0.75rem;
-    background: var(--t5e-faint-color, rgba(0, 0, 0, 0.05));
-    border-radius: 4px;
-    border: 1px solid var(--t5e-faintest-color, rgba(0, 0, 0, 0.1));
   }
 
   .question-inputs {
@@ -291,26 +219,8 @@
     flex: 1;
   }
 
-  .question-input,
-  .answer-input {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid var(--t5e-separator-color, #ccc);
-    border-radius: 3px;
-    font-family: inherit;
-    font-size: 0.9rem;
-    background: white;
-
-    &:focus {
-      outline: none;
-      border-color: var(--t5e-primary-accent-color, #4b4a44);
-    }
-  }
-
   .answer-input {
     min-height: 1.75rem;
-    resize: vertical;
-    font-family: inherit;
   }
 
   .question-actions {
