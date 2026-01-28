@@ -374,8 +374,8 @@
     .reaction-header {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
+      gap: 0rem;
+      margin-bottom: 0rem;
 
       .reaction-name-row {
         flex: 1;
@@ -404,7 +404,7 @@
     .reaction-content {
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 0rem;
     }
   }
 </style>

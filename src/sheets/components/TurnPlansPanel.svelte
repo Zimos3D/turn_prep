@@ -20,6 +20,7 @@
   let loading = $state(true);
   let initialized = $state(false);
   let collapsed = $state(false);
+  let notesSectionState: Record<string, boolean> = $state({});
 
   let saveTimeout: number | null = null;
   const hookCleanups: Array<() => void> = [];
@@ -80,6 +81,7 @@
       plans = [];
       loading = false;
       initialized = true;
+      notesSectionState = {};
       return;
     }
 
@@ -95,6 +97,7 @@
       plans = [];
       ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.TurnPlans.SaveError'));
     } finally {
+      syncNotesSectionState(plans);
       loading = false;
       initialized = true;
     }
@@ -188,6 +191,7 @@
     };
     
     plans = [...plans, newPlan];
+    syncNotesSectionState(plans);
     void savePlans();
   }
 
@@ -263,6 +267,7 @@
     if (!confirmed) return;
 
     plans = plans.filter(p => p.id !== id);
+    syncNotesSectionState(plans);
     void savePlans();
   }
 
@@ -277,6 +282,47 @@
       console.error('[TurnPlansPanel] Failed to save plans:', error);
       ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.TurnPlans.SaveError'));
     }
+  }
+
+  function syncNotesSectionState(nextPlans: TurnPlan[]) {
+    const nextState: Record<string, boolean> = { ...notesSectionState };
+    let changed = false;
+    const planIds = new Set(nextPlans.map((plan) => plan.id));
+
+    nextPlans.forEach((plan) => {
+      if (nextState[plan.id] === undefined) {
+        nextState[plan.id] = true;
+        changed = true;
+      }
+    });
+
+    Object.keys(nextState).forEach((planId) => {
+      if (!planIds.has(planId)) {
+        delete nextState[planId];
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      notesSectionState = nextState;
+    }
+  }
+
+  function ensureNotesSectionState(planId: string) {
+    if (notesSectionState[planId] !== undefined) return;
+    notesSectionState = { ...notesSectionState, [planId]: true };
+  }
+
+  function isNotesSectionOpen(planId: string): boolean {
+    if (notesSectionState[planId] === undefined) {
+      ensureNotesSectionState(planId);
+    }
+    return !!notesSectionState[planId];
+  }
+
+  function toggleNotesSection(planId: string) {
+    const nextValue = !isNotesSectionOpen(planId);
+    notesSectionState = { ...notesSectionState, [planId]: nextValue };
   }
 </script>
 
@@ -360,38 +406,58 @@
                   />
                 </div>
 
-                <div class="plan-field turn-prep-field">
-                  <label for={"tp-trigger-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Trigger')}</label>
-                  <input
-                    id={"tp-trigger-" + plan.id}
-                    type="text"
-                    class="turn-prep-input"
-                    bind:value={plan.trigger}
-                    placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.TriggerPlaceholder')}
-                    oninput={scheduleAutoSave}
-                  />
-                </div>
+                <div class="turn-plan-notes">
+                  <div class="turn-prep-collapsible">
+                    <button
+                      type="button"
+                      class="turn-prep-collapsible__toggle"
+                      onclick={() => toggleNotesSection(plan.id)}
+                    >
+                      <i class="fas fa-chevron-{isNotesSectionOpen(plan.id) ? 'down' : 'right'}"></i>
+                      {FoundryAdapter.localize('TURN_PREP.TurnPlans.AdditionalNotes')}
+                    </button>
 
-                <div class="plan-field turn-prep-field">
-                  <label for={"tp-movement-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Movement')}</label>
-                  <input
-                    id={"tp-movement-" + plan.id}
-                    type="text"
-                    class="turn-prep-input"
-                    bind:value={plan.movement}
-                    oninput={scheduleAutoSave}
-                  />
-                </div>
+                    {#if isNotesSectionOpen(plan.id)}
+                      <div class="turn-prep-collapsible__body">
+                        <div class="turn-plan-notes__table" role="table">
+                          <label class="turn-plan-notes__label" for={"tp-situation-" + plan.id}>
+                            {FoundryAdapter.localize('TURN_PREP.TurnPlans.Situation')}
+                          </label>
+                          <textarea
+                            id={"tp-situation-" + plan.id}
+                            class="turn-prep-textarea turn-plan-notes__input turn-plan-notes__input--single"
+                            bind:value={plan.trigger}
+                            placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.TriggerPlaceholder')}
+                            rows="1"
+                            oninput={scheduleAutoSave}
+                          ></textarea>
 
-                <div class="plan-field turn-prep-field">
-                  <label for={"tp-roleplay-" + plan.id}>{FoundryAdapter.localize('TURN_PREP.TurnPlans.RoleplayNotes')}</label>
-                  <textarea
-                    id={"tp-roleplay-" + plan.id}
-                    class="turn-prep-textarea"
-                    bind:value={plan.roleplay}
-                    rows="3"
-                    oninput={scheduleAutoSave}
-                  ></textarea>
+                          <label class="turn-plan-notes__label" for={"tp-movement-" + plan.id}>
+                            {FoundryAdapter.localize('TURN_PREP.TurnPlans.Movement')}
+                          </label>
+                          <textarea
+                            id={"tp-movement-" + plan.id}
+                            class="turn-prep-textarea turn-plan-notes__input turn-plan-notes__input--single"
+                            bind:value={plan.movement}
+                            rows="1"
+                            oninput={scheduleAutoSave}
+                          ></textarea>
+
+                          <label class="turn-plan-notes__label" for={"tp-notes-" + plan.id}>
+                            {FoundryAdapter.localize('TURN_PREP.TurnPlans.Notes')}
+                          </label>
+                          <textarea
+                            id={"tp-notes-" + plan.id}
+                            class="turn-prep-textarea turn-plan-notes__input turn-plan-notes__input--double"
+                            bind:value={plan.roleplay}
+                            placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.NotesPlaceholder')}
+                            rows="2"
+                            oninput={scheduleAutoSave}
+                          ></textarea>
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
                 </div>
               </div>
             </div>
@@ -407,8 +473,8 @@
     .plan-header {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
+      gap: 0rem;
+      margin-bottom: 0rem;
 
       .plan-name {
         flex: 1;
@@ -433,13 +499,13 @@
     .plan-content {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 0rem;
 
       .plan-feature-sections {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
-        margin-bottom: 0.5rem;
+        gap: 0rem;
+        margin-bottom: 0rem;
       }
     }
   }

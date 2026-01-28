@@ -149,7 +149,7 @@
 .turn-prep-collapsible {
 	border: 1px solid var(--t5e-faint-color, rgba(0, 0, 0, 0.15));
 	border-radius: 4px;
-	padding: 0.5rem 0.75rem;
+	padding: 0.25rem 0.25rem;
 	background: var(--t5e-panel-muted-bg, rgba(0, 0, 0, 0.03));
 }
 
@@ -173,4 +173,43 @@
 
 .turn-prep-collapsible__body {
 	margin-top: 0.5rem;
+}
+
+.turn-plan-notes {
+	margin-top: 0.5rem;
+	--turn-plan-notes-row-height: 2.25rem;
+	--turn-plan-notes-max-height: 26rem;
+}
+
+.turn-plan-notes__table {
+	display: grid;
+	grid-template-columns: minmax(6rem, max-content) 1fr;
+	column-gap: 0.5rem;
+	row-gap: 0.25rem;
+	width: 100%;
+}
+
+.turn-plan-notes__label {
+	font-weight: 600;
+	font-size: 0.9rem;
+	color: var(--t5e-color-text-default, #3a352f);
+	align-self: center;
+	white-space: nowrap;
+}
+
+.turn-plan-notes__input {
+	min-height: var(--turn-plan-notes-row-height, 2.25rem);
+	height: var(--turn-plan-notes-row-height, 2.25rem);
+	max-height: var(--turn-plan-notes-max-height, 26rem);
+	resize: vertical;
+	overflow-y: auto;
+	line-height: 1.2;
+}
+
+.turn-plan-notes__input--single {
+	height: var(--turn-plan-notes-row-height, 2.25rem);
+}
+
+.turn-plan-notes__input--double {
+	height: calc(var(--turn-plan-notes-row-height, 2.25rem) * 2);
 }
