@@ -8,6 +8,12 @@
       "Actions": "Actions",
       "ComingSoon": "Coming soon"
     },
+    "ContextMenu": {
+      "View": "View",
+      "Edit": "Edit",
+      "DisplayInChat": "Display in Chat",
+      "RemoveFromTurnPrep": "Remove from Turn Prep"
+    },
     "Tabs": {
       "TurnPrep": "Turn Prep",
       "Turns": "Turns"

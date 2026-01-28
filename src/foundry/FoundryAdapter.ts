@@ -475,6 +475,68 @@ export class FoundryAdapter {
   }
 
   /**
+   * Open an item's sheet with optional editable override.
+   */
+  static openItemSheet(
+    item: Item | null | undefined,
+    options: { editable?: boolean } = {}
+  ): void {
+    if (!item) {
+      warn('[FoundryAdapter] Cannot open sheet - item is missing');
+      return;
+    }
+
+    const sheet = item.sheet ?? (typeof (item as any).getSheet === 'function' ? (item as any).getSheet() : null);
+    if (!sheet) {
+      warn(`[FoundryAdapter] No sheet available for item ${item.name}`);
+      return;
+    }
+
+    const renderOptions = typeof options.editable === 'boolean' ? { editable: options.editable } : undefined;
+    try {
+      sheet.render(true, renderOptions);
+    } catch (err) {
+      warn('[FoundryAdapter] Failed to render item sheet', err as Error);
+    }
+  }
+
+  /**
+   * Display an item card in chat, falling back through legacy APIs if needed.
+   */
+  static async displayItemInChat(
+    item: Item | null | undefined,
+    options: { rollMode?: string } = {}
+  ): Promise<void> {
+    if (!item) {
+      warn('[FoundryAdapter] Cannot display in chat - item is missing');
+      return;
+    }
+
+    const rollMode = options.rollMode ?? (game.settings?.get('core', 'rollMode') as string | undefined) ?? 'publicroll';
+
+    try {
+      if (typeof (item as any).displayCard === 'function') {
+        await (item as any).displayCard({ rollMode });
+        return;
+      }
+
+      if (typeof (item as any).toMessage === 'function') {
+        await (item as any).toMessage(undefined, { rollMode });
+        return;
+      }
+
+      if (typeof (item as any).toChat === 'function') {
+        await (item as any).toChat({ rollMode });
+        return;
+      }
+
+      warn('[FoundryAdapter] Item document does not support chat display');
+    } catch (err) {
+      warn('[FoundryAdapter] Failed to display item in chat', err as Error);
+    }
+  }
+
+  /**
    * Check if user can use an item
    * @param item - The item object
    * @returns True if user has permission to use it

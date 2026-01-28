@@ -1,5 +1,9 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { FoundryAdapter } from '../../foundry/FoundryAdapter';
+  import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
+  import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
+  import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
   import type { SelectedFeature } from '../../types/turn-prep.types';
 
   export type RollDisplay = {
@@ -109,6 +113,16 @@
   let rowStates = $state<Record<string, boolean>>({});
   let descriptionCache = $state<Record<string, string>>({});
   const pendingDescriptions = new Set<string>();
+  const featureContextMenu = new ContextMenuController('turn-plan-feature-table');
+  let activeContextRowKey = $state<string | null>(null);
+
+  onMount(() => {
+    const unsubscribe = featureContextMenu.subscribe((state) => {
+      activeContextRowKey = (state?.context?.rowKey as string | undefined) ?? null;
+    });
+
+    return () => unsubscribe();
+  });
 
   $effect(() => {
     // Drop row expansion state when features change
@@ -223,6 +237,110 @@
       ? FoundryAdapter.localizeFormat(key, data)
       : FoundryAdapter.localize(key);
     ui.notifications?.warn(message);
+  }
+
+  function ensureFeatureItem(feature: DisplayFeature): Item | null {
+    const item = getFeatureItem(feature);
+    if (!item) {
+      notifyWarning('TURN_PREP.TurnPlans.Messages.ItemUnavailable');
+      return null;
+    }
+    return item;
+  }
+
+  function openFeatureSheet(feature: DisplayFeature, editable: boolean): void {
+    const item = ensureFeatureItem(feature);
+    if (!item) return;
+    FoundryAdapter.openItemSheet(item, { editable });
+  }
+
+  async function displayFeatureInChat(feature: DisplayFeature): Promise<void> {
+    const item = ensureFeatureItem(feature);
+    if (!item) return;
+    await FoundryAdapter.displayItemInChat(item);
+  }
+
+  function removeFeatureFromPlan(feature: DisplayFeature): void {
+    if (!feature?.itemId || typeof onRemoveFeature !== 'function') {
+      return;
+    }
+    onRemoveFeature(feature.itemId);
+  }
+
+  function getFeatureContextMenuActions(feature: DisplayFeature): ContextMenuAction[] {
+    return [
+      {
+        id: 'view',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.View'),
+        icon: 'fa-solid fa-eye',
+        onSelect: () => openFeatureSheet(feature, false)
+      },
+      {
+        id: 'edit',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.Edit'),
+        icon: 'fa-solid fa-pen-to-square',
+        onSelect: () => openFeatureSheet(feature, true)
+      },
+      {
+        id: 'display',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.DisplayInChat'),
+        icon: 'fa-solid fa-message-arrow-up-right',
+        onSelect: () => displayFeatureInChat(feature)
+      },
+      {
+        id: 'remove',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.RemoveFromTurnPrep'),
+        icon: 'fa-regular fa-hourglass',
+        variant: 'destructive',
+        onSelect: () => removeFeatureFromPlan(feature)
+      }
+    ];
+  }
+
+  function buildFeatureMenuSections(feature: DisplayFeature): ContextMenuSection[] {
+    return [
+      {
+        id: `${feature.rowKey}-menu`,
+        actions: getFeatureContextMenuActions(feature)
+      }
+    ];
+  }
+
+  function openFeatureContextMenu(
+    feature: DisplayFeature,
+    position: { x: number; y: number },
+    anchorElement?: HTMLElement | null
+  ): void {
+    featureContextMenu.open({
+      sections: buildFeatureMenuSections(feature),
+      position,
+      anchorElement: anchorElement ?? null,
+      context: {
+        rowKey: feature.rowKey,
+        featureId: feature.itemId,
+        ariaLabel: `${feature.itemName} ${FoundryAdapter.localize('TURN_PREP.Common.Actions')}`
+      }
+    });
+  }
+
+  function handleRowContextMenu(feature: DisplayFeature, event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    openFeatureContextMenu(feature, { x: event.clientX, y: event.clientY }, event.currentTarget as HTMLElement);
+  }
+
+  function handleFeatureMenuButton(feature: DisplayFeature, event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const button = event.currentTarget as HTMLElement | null;
+
+    if (button) {
+      const rect = button.getBoundingClientRect();
+      openFeatureContextMenu(feature, { x: rect.right, y: rect.bottom + 4 }, button);
+      return;
+    }
+
+    openFeatureContextMenu(feature, { x: event.clientX, y: event.clientY });
   }
 
   async function handleFeatureRoll(feature: DisplayFeature, event: MouseEvent) {
@@ -365,9 +483,16 @@
           </div>
         {:else}
           {#each features as feature (feature.rowKey)}
-            <div class="tidy-table-row-container" data-item-id={feature.itemId}>
+            <div
+              class="tidy-table-row-container"
+              data-item-id={feature.itemId}
+              role="button"
+              tabindex="-1"
+              aria-haspopup="menu"
+              oncontextmenu={(event) => handleRowContextMenu(feature, event)}
+            >
               <div
-                class={`tidy-table-row tidy-table-row-v2 ${rowStates[feature.rowKey] ? 'expanded' : ''} ${feature.isMissing ? 'missing' : ''}`}
+                class={`tidy-table-row tidy-table-row-v2 ${rowStates[feature.rowKey] ? 'expanded' : ''} ${feature.isMissing ? 'missing' : ''} ${activeContextRowKey === feature.rowKey ? 'context-open' : ''}`}
                 style="--grid-template-columns: {templateColumns};"
               >
                 <button
@@ -470,10 +595,11 @@
                 >
                   <button
                     type="button"
-                    class="tidy-table-button"
-                    title={FoundryAdapter.localize('TURN_PREP.Messages.NotImplemented')}
-                    aria-label={FoundryAdapter.localize('TURN_PREP.Common.Actions')}
-                    onclick={handlePendingActionsClick}
+                    class={`tidy-table-button ${activeContextRowKey === feature.rowKey ? 'is-active' : ''}`}
+                    title={FoundryAdapter.localize('TURN_PREP.Common.Actions')}
+                    aria-haspopup="menu"
+                    aria-expanded={activeContextRowKey === feature.rowKey ? 'true' : 'false'}
+                    onclick={(event) => handleFeatureMenuButton(feature, event)}
                   >
                     <i class="fa-solid fa-ellipsis-vertical"></i>
                   </button>
@@ -656,6 +782,8 @@
     </div>
   </div>
 </section>
+
+<ContextMenuHost controller={featureContextMenu} />
 
 <style lang="less">
   .turn-plan-feature-table {

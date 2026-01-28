@@ -1,0 +1,115 @@
+/**
+ * Context Menu Styles
+ *
+ * Shared presentation for any floating context menu in the Turn Prep UI.
+ */
+
+.turn-prep-context-menu {
+  position: fixed;
+  z-index: 10050;
+  min-width: 11rem;
+  max-width: 18rem;
+  padding: 0.35rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--t5e-context-menu-bg, rgba(16, 16, 16, 0.95));
+  box-shadow: 0 1rem 1.75rem rgba(0, 0, 0, 0.45);
+  color: var(--t5e-light-color, #f7f5eb);
+  backdrop-filter: blur(8px);
+  animation: turn-prep-context-menu-fade 120ms ease;
+}
+
+.turn-prep-context-menu__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.turn-prep-context-menu__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.turn-prep-context-menu__section-label {
+  margin: 0;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.turn-prep-context-menu__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.turn-prep-context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  text-align: left;
+}
+
+.turn-prep-context-menu__item:focus-visible {
+  outline: 2px solid var(--t5e-primary-accent-color, #d0902c);
+  outline-offset: 1px;
+}
+
+.turn-prep-context-menu__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.turn-prep-context-menu__item.is-destructive {
+  color: var(--t5e-warning-accent-color, #d2643a);
+}
+
+.turn-prep-context-menu__item.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.turn-prep-context-menu__item-icon {
+  width: 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.turn-prep-context-menu__item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.turn-prep-context-menu__item-text .label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.turn-prep-context-menu__item-text .description {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+@keyframes turn-prep-context-menu-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
