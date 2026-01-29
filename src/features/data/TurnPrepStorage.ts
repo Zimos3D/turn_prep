@@ -88,7 +88,7 @@ export class TurnPrepStorage {
       debug(`TurnPrepStorage.save(): Saving data for actor ${actor.id}`);
 
       // Perform atomic save to actor flag
-      await FoundryAdapter.setFlag(actor, FLAG_KEY_DATA, data);
+      await FoundryAdapter.setFlag(actor, FLAG_KEY_DATA, data, { render: false });
 
       info(`TurnPrepStorage.save(): Successfully saved data for actor ${actor.id}`);
     } catch (err) {

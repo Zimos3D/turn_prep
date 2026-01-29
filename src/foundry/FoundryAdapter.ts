@@ -251,13 +251,13 @@ export class FoundryAdapter {
    * @param value - The value to set
    * @returns Promise that resolves when flag is set
    */
-  static async setFlag(actor: Actor, key: string, value: any): Promise<void> {
+  static async setFlag(actor: Actor, key: string, value: any, options: Record<string, any> = {}): Promise<void> {
     if (!actor) {
       throw new Error('Cannot set flag on null actor');
     }
 
     try {
-      await actor.setFlag(FLAG_SCOPE, key, value);
+      await actor.setFlag(FLAG_SCOPE, key, value, options);
     } catch (err) {
       logError(`Failed to set flag ${key} on actor`, err as Error);
       throw err;
@@ -270,8 +270,8 @@ export class FoundryAdapter {
    * @param data - The Turn Prep data
    * @returns Promise that resolves when data is saved
    */
-  static async setTurnPrepData(actor: Actor, data: TurnPrepData): Promise<void> {
-    return this.setFlag(actor, FLAG_KEY_DATA, data);
+  static async setTurnPrepData(actor: Actor, data: TurnPrepData, options: Record<string, any> = {}): Promise<void> {
+    return this.setFlag(actor, FLAG_KEY_DATA, data, options);
   }
 
   /**

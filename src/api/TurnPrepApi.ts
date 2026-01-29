@@ -276,8 +276,8 @@ export class TurnPrepApi {
    * @param data - The data to save
    * @returns Promise that resolves when data is saved
    */
-  async saveTurnPrepData(actor: Actor, data: TurnPrepData): Promise<void> {
-    return FoundryAdapter.setTurnPrepData(actor, data);
+  async saveTurnPrepData(actor: Actor, data: TurnPrepData, options: Record<string, any> = {}): Promise<void> {
+    return FoundryAdapter.setTurnPrepData(actor, data, options);
   }
 
   /**
