@@ -31,7 +31,13 @@
       "EmptyQuestion": "Please enter a question before sending",
       "SentToDm": "Question sent to DM",
       "SentToPublic": "Question sent to chat",
-      "SendFailed": "Failed to send question. Check console for details."
+      "SendFailed": "Failed to send question. Check console for details.",
+      "ContextMenu": {
+        "Whisper": "Whisper to DM",
+        "SendToChat": "Send to Chat",
+        "Duplicate": "Duplicate Question",
+        "Delete": "Delete Question"
+      }
     },
     "TurnPlans": {
       "Title": "Current Turn Plans",

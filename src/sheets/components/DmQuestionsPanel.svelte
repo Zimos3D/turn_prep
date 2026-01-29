@@ -1,7 +1,12 @@
 ﻿<script lang="ts">
+  import { onMount } from 'svelte';
   import type { Actor5e } from 'src/foundry/foundry.types';
   import { FLAG_SCOPE, FLAG_KEY_DATA } from 'src/constants';
   import { info, error } from 'src/utils/logging';
+  import { FoundryAdapter } from 'src/foundry/FoundryAdapter';
+  import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
+  import { ContextMenuController } from 'src/features/context-menu/ContextMenuController';
+  import type { ContextMenuAction, ContextMenuSection } from 'src/features/context-menu/context-menu.types';
 
   // Actor passed as prop from Tidy5e
   interface Props {
@@ -52,6 +57,17 @@
 
   // Collapsible state
   let collapsed = $state(false);
+  const questionMenuController = new ContextMenuController('dm-questions-panel');
+  let activeContextIndex = $state<number | null>(null);
+
+  onMount(() => {
+    const unsubscribe = questionMenuController.subscribe((state) => {
+      const contextIndex = state?.context?.index;
+      activeContextIndex = typeof contextIndex === 'number' ? contextIndex : null;
+    });
+
+    return () => unsubscribe();
+  });
 
   // Auto-save with debounce
   let saveTimeout: number | null = null;
@@ -105,6 +121,21 @@
     saveQuestions();
   }
 
+  function duplicateQuestion(index: number) {
+    const source = questions[index];
+    if (!source) {
+      return;
+    }
+
+    const clone = { question: source.question, answer: source.answer };
+    questions = [
+      ...questions.slice(0, index + 1),
+      clone,
+      ...questions.slice(index + 1)
+    ];
+    saveQuestions();
+  }
+
   async function whisperToDm(index: number) {
     const q = questions[index];
     if (!q.question) return;
@@ -136,6 +167,81 @@
 
     ui.notifications?.info('Question sent to chat');
   }
+
+  function getQuestionMenuActions(index: number): ContextMenuAction[] {
+    return [
+      {
+        id: 'whisper',
+        label: FoundryAdapter.localize('TURN_PREP.DmQuestions.ContextMenu.Whisper'),
+        icon: 'fas fa-paper-plane',
+        onSelect: () => whisperToDm(index)
+      },
+      {
+        id: 'chat',
+        label: FoundryAdapter.localize('TURN_PREP.DmQuestions.ContextMenu.SendToChat'),
+        icon: 'fas fa-comments',
+        onSelect: () => sendToChat(index)
+      },
+      {
+        id: 'duplicate',
+        label: FoundryAdapter.localize('TURN_PREP.DmQuestions.ContextMenu.Duplicate'),
+        icon: 'fas fa-copy',
+        onSelect: () => duplicateQuestion(index)
+      },
+      {
+        id: 'delete',
+        label: FoundryAdapter.localize('TURN_PREP.DmQuestions.ContextMenu.Delete'),
+        icon: 'fas fa-trash',
+        variant: 'destructive',
+        onSelect: () => removeQuestion(index)
+      }
+    ];
+  }
+
+  function buildQuestionMenuSections(index: number): ContextMenuSection[] {
+    return [
+      {
+        id: `dm-question-${index}`,
+        actions: getQuestionMenuActions(index)
+      }
+    ];
+  }
+
+  function openQuestionContextMenu(
+    index: number,
+    position: { x: number; y: number },
+    anchorElement?: HTMLElement | null
+  ) {
+    questionMenuController.open({
+      sections: buildQuestionMenuSections(index),
+      position,
+      anchorElement: anchorElement ?? null,
+      context: {
+        index,
+        ariaLabel: FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenuLabel')
+      }
+    });
+  }
+
+  function handleQuestionContextMenu(index: number, event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    openQuestionContextMenu(index, { x: event.clientX, y: event.clientY }, event.currentTarget as HTMLElement);
+  }
+
+  function handleQuestionMenuButton(index: number, event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const button = event.currentTarget as HTMLElement | null;
+
+    if (button) {
+      const rect = button.getBoundingClientRect();
+      openQuestionContextMenu(index, { x: rect.right, y: rect.bottom + 4 }, button);
+      return;
+    }
+
+    openQuestionContextMenu(index, { x: event.clientX, y: event.clientY });
+  }
 </script>
 
 <div class="turn-prep-panel turn-prep-dm-questions">
@@ -157,7 +263,12 @@
   {#if !collapsed}
     <div class="turn-prep-panel-list questions-list">
     {#each questions as q, i}
-      <div class="turn-prep-panel-card question-row">
+      <div
+        class={`turn-prep-panel-card question-row ${activeContextIndex === i ? 'context-open' : ''}`}
+        role="group"
+        tabindex="-1"
+        oncontextmenu={(event) => handleQuestionContextMenu(i, event)}
+      >
         <div class="question-inputs">
           <input
             type="text"
@@ -176,27 +287,13 @@
         <div class="question-actions">
           <button
             type="button"
-            class="whisper-btn"
-            title="Whisper to DM"
-            onclick={() => whisperToDm(i)}
+            class={`question-menu-btn ${activeContextIndex === i ? 'is-active' : ''}`}
+            title={FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenuLabel')}
+            aria-haspopup="menu"
+            aria-expanded={activeContextIndex === i ? 'true' : 'false'}
+            onclick={(event) => handleQuestionMenuButton(i, event)}
           >
-            <i class="fas fa-paper-plane"></i>
-          </button>
-          <button
-            type="button"
-            class="chat-btn"
-            title="Send to chat"
-            onclick={() => sendToChat(i)}
-          >
-            <i class="fas fa-comments"></i>
-          </button>
-          <button
-            type="button"
-            class="remove-btn"
-            title="Remove this question"
-            onclick={() => removeQuestion(i)}
-          >
-            <i class="fas fa-trash"></i>
+            <i class="fa-solid fa-ellipsis-vertical"></i>
           </button>
         </div>
       </div>
@@ -205,11 +302,20 @@
   {/if}
 </div>
 
+<ContextMenuHost controller={questionMenuController} />
+
 <style lang="less">
   .question-row {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.5rem;
+    border: 1px solid var(--t5e-faint-color, rgba(0, 0, 0, 0.12));
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .question-row.context-open {
+    border-color: var(--t5e-primary-accent-color, #4b4a44);
+    box-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.25);
   }
 
   .question-inputs {
@@ -228,14 +334,14 @@
     flex-direction: row;
     gap: 0.25rem;
     align-items: flex-start;
+    justify-content: flex-end;
   }
 
   .question-actions button {
     width: 2rem;
     height: 2rem;
     padding: 0;
-    border: none;
-    border-radius: 3px;
+    border-radius: 0.35rem;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -247,30 +353,16 @@
     }
   }
 
-  .whisper-btn {
-    background: var(--t5e-primary-accent-color, #4b4a44);
-    color: white;
+  .question-menu-btn {
+    border: 1px solid var(--t5e-faint-color, rgba(0, 0, 0, 0.2));
+    background: var(--t5e-panel-muted-bg, rgba(0, 0, 0, 0.05));
+    color: var(--t5e-color-text-default, inherit);
 
-    &:hover {
-      background: var(--t5e-primary-accent-color-hover, #5a5850);
-    }
-  }
-
-  .chat-btn {
-    background: #2196f3;
-    color: white;
-
-    &:hover {
-      background: #1976d2;
-    }
-  }
-
-  .remove-btn {
-    background: #f44336;
-    color: white;
-
-    &:hover {
-      background: #d32f2f;
+    &:hover,
+    &.is-active {
+      border-color: var(--t5e-primary-accent-color, #4b4a44);
+      color: var(--t5e-primary-accent-color, #4b4a44);
+      background: rgba(0, 0, 0, 0.08);
     }
   }
 </style>
