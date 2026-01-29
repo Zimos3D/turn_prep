@@ -108,6 +108,7 @@
       "ReactionLabel": "Reaction",
       "Trigger": "Trigger",
       "TriggerPlaceholder": "When will you use this reaction?",
+      "ToggleBody": "Toggle reaction details",
       "ReactionFeatures": "Reactions",
       "AdditionalFeatures": "Additional Features",
       "Notes": "Notes",

@@ -60,6 +60,9 @@ function registerTidyTabs(api: any) {
         title: 'Turn Prep',
         tabId: TAB_ID_MAIN,
         html: '<div data-turn-prep-root style="height: 100%"></div>',
+        // Prevent Tidy from nuking our tab markup on every actor update so the Svelte
+        // component stays mounted and keeps focus/scroll state intact.
+        renderScheme: 'force',
         enabled: (data: any) => true,
         onRender: (params: any) => {
           const { element, data } = params;

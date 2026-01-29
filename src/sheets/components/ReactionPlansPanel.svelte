@@ -11,6 +11,9 @@
     cloneSelectedFeatureArray,
     mergeSelectedFeatureArrays
   } from './featureDisplay.helpers';
+  import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
+  import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
+  import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
 
   let { actor }: { actor: any } = $props();
 
@@ -19,6 +22,9 @@
   let initialized = $state(false);
   let collapsed = $state(false);
   let notesCollapsed = $state<Record<string, boolean>>({});
+  let reactionCollapseState = $state<Record<string, boolean>>({});
+  const reactionContextMenuController = new ContextMenuController('reaction-plans-panel');
+  let activeContextReactionId = $state<string | null>(null);
 
   let saveTimeout: number | null = null;
   const hookCleanups: Array<() => void> = [];
@@ -30,9 +36,15 @@
     registerHook('updateItem', onItemChanged);
     registerHook('deleteItem', onItemChanged);
 
+    const unsubscribe = reactionContextMenuController.subscribe((state) => {
+      const contextReactionId = state?.context?.reactionId;
+      activeContextReactionId = typeof contextReactionId === 'string' ? contextReactionId : null;
+    });
+
     return () => {
       cleanupHooks();
       cancelPendingSave(true);
+      unsubscribe();
     };
   });
 
@@ -55,6 +67,28 @@
 
     if (changed) {
       notesCollapsed = nextState;
+    }
+  });
+
+  $effect(() => {
+    const nextState: Record<string, boolean> = {};
+    let changed = false;
+
+    for (const reaction of reactions) {
+      const existing = reactionCollapseState[reaction.id];
+      const value = existing ?? false;
+      nextState[reaction.id] = value;
+      if (existing === undefined) {
+        changed = true;
+      }
+    }
+
+    if (Object.keys(reactionCollapseState).length !== Object.keys(nextState).length) {
+      changed = true;
+    }
+
+    if (changed) {
+      reactionCollapseState = nextState;
     }
   });
 
@@ -154,6 +188,17 @@
     };
   }
 
+  function isReactionCollapsed(reactionId: string): boolean {
+    return !!reactionCollapseState[reactionId];
+  }
+
+  function toggleReactionCollapsed(reactionId: string) {
+    reactionCollapseState = {
+      ...reactionCollapseState,
+      [reactionId]: !isReactionCollapsed(reactionId)
+    };
+  }
+
   function cancelPendingSave(flush = false) {
     const pending = !!saveTimeout;
     if (saveTimeout) {
@@ -190,6 +235,30 @@
 
     reactions = [...reactions, newReaction];
     notesCollapsed = { ...notesCollapsed, [newReaction.id]: true };
+    void saveReactions();
+  }
+
+  function duplicateReaction(reactionId: string) {
+    const sourceIndex = reactions.findIndex((reaction) => reaction.id === reactionId);
+    if (sourceIndex === -1) return;
+
+    const source = reactions[sourceIndex];
+    const copySuffix = FoundryAdapter.localize('TURN_PREP.Common.CopySuffix') ?? '(Copy)';
+    const clone: Reaction = {
+      ...source,
+      id: foundry.utils.randomID(),
+      name: `${source.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} ${copySuffix}`.trim(),
+      reactionFeatures: cloneSelectedFeatureArray(source.reactionFeatures),
+      additionalFeatures: cloneSelectedFeatureArray(source.additionalFeatures),
+      createdTime: Date.now(),
+    };
+
+    reactions = [
+      ...reactions.slice(0, sourceIndex + 1),
+      clone,
+      ...reactions.slice(sourceIndex + 1)
+    ];
+    notesCollapsed = { ...notesCollapsed, [clone.id]: notesCollapsed[source.id] ?? true };
     void saveReactions();
   }
 
@@ -258,6 +327,69 @@
       ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.Reactions.SaveError'));
     }
   }
+
+  function getReactionContextMenuActions(reaction: Reaction): ContextMenuAction[] {
+    return [
+      {
+        id: 'duplicate',
+        label: FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenu.Duplicate'),
+        icon: 'fa-regular fa-copy',
+        onSelect: () => duplicateReaction(reaction.id)
+      },
+      {
+        id: 'delete',
+        label: FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenu.Delete'),
+        icon: 'fa-regular fa-trash-can',
+        variant: 'destructive',
+        onSelect: () => void deleteReaction(reaction.id)
+      }
+    ];
+  }
+
+  function buildReactionContextMenuSections(reaction: Reaction): ContextMenuSection[] {
+    return [
+      {
+        id: `reaction-menu-${reaction.id}`,
+        actions: getReactionContextMenuActions(reaction)
+      }
+    ];
+  }
+
+  function openReactionContextMenu(
+    reaction: Reaction,
+    position: { x: number; y: number },
+    anchor?: HTMLElement | null
+  ) {
+    reactionContextMenuController.open({
+      sections: buildReactionContextMenuSections(reaction),
+      position,
+      anchorElement: anchor ?? null,
+      context: {
+        reactionId: reaction.id,
+        ariaLabel: `${reaction.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} ${FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenuLabel')}`
+      }
+    });
+  }
+
+  function handleReactionContextMenu(reaction: Reaction, event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    openReactionContextMenu(reaction, { x: event.clientX, y: event.clientY }, event.currentTarget as HTMLElement);
+  }
+
+  function handleReactionMenuButton(reaction: Reaction, event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const button = event.currentTarget as HTMLElement | null;
+
+    if (button) {
+      const rect = button.getBoundingClientRect();
+      openReactionContextMenu(reaction, { x: rect.right, y: rect.bottom + 4 }, button);
+      return;
+    }
+
+    openReactionContextMenu(reaction, { x: event.clientX, y: event.clientY });
+  }
 </script>
 
 {#if loading}
@@ -294,9 +426,21 @@
       {:else}
         <div class="turn-prep-panel-list reaction-plans-list">
           {#each reactions as reaction (reaction.id)}
-            <div class="turn-prep-panel-card reaction-card">
+            <div
+              class={`turn-prep-panel-card reaction-card ${isReactionCollapsed(reaction.id) ? 'is-collapsed' : ''} ${activeContextReactionId === reaction.id ? 'is-context-open' : ''}`}
+              role="group"
+              oncontextmenu={(event) => handleReactionContextMenu(reaction, event)}
+            >
               <div class="reaction-header">
                 <div class="turn-prep-inline-label-row reaction-name-row">
+                  <button
+                    type="button"
+                    class="reaction-collapse-button"
+                    aria-label={FoundryAdapter.localize('TURN_PREP.Reactions.ToggleBody')}
+                    onclick={() => toggleReactionCollapsed(reaction.id)}
+                  >
+                    <i class={`fas fa-chevron-${isReactionCollapsed(reaction.id) ? 'right' : 'down'}`}></i>
+                  </button>
                   <label
                     for={"reaction-name-" + reaction.id}
                   >
@@ -313,15 +457,17 @@
                 </div>
                 <button
                   type="button"
-                  class="delete-reaction-button"
-                  onclick={() => deleteReaction(reaction.id)}
-                  title={FoundryAdapter.localize('TURN_PREP.Reactions.DeleteTooltip')}
+                  class="reaction-menu-button"
+                  aria-label={FoundryAdapter.localize('TURN_PREP.ContextMenu.OpenLabel')}
+                  title={FoundryAdapter.localize('TURN_PREP.ContextMenu.OpenLabel')}
+                  onclick={(event) => handleReactionMenuButton(reaction, event)}
                 >
-                  <i class="fas fa-trash"></i>
+                  <i class="fas fa-ellipsis-vertical"></i>
                 </button>
               </div>
 
-              <div class="reaction-content">
+              {#if !isReactionCollapsed(reaction.id)}
+                <div class="reaction-content">
 
                 <TurnPlanFeatureTable
                   tableKey={`reaction-${reaction.id}`}
@@ -360,7 +506,8 @@
                     </div>
                   {/if}
                 </div>
-              </div>
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -369,8 +516,14 @@
   </div>
 {/if}
 
+<ContextMenuHost controller={reactionContextMenuController} />
+
 <style lang="less">
   .reaction-card {
+    &.is-context-open {
+      box-shadow: 0 0 0 2px var(--t5e-primary-accent-color, #ff6400);
+    }
+
     .reaction-header {
       display: flex;
       align-items: center;
@@ -379,6 +532,9 @@
 
       .reaction-name-row {
         flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
       }
 
       .reaction-name {
@@ -387,16 +543,34 @@
         font-weight: 500;
       }
 
-      .delete-reaction-button {
-        padding: 0.5rem;
+      .reaction-collapse-button {
         background: transparent;
         border: none;
-        color: var(--t5e-warning-accent-color);
+        color: inherit;
+        padding: 0.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         cursor: pointer;
-        font-size: 1.1rem;
 
         &:hover {
-          color: var(--t5e-warning-accent-hover-color);
+          color: var(--t5e-primary-accent-color, #ff6400);
+        }
+      }
+
+      .reaction-menu-button {
+        padding: 0.35rem;
+        background: transparent;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        font-size: 1.05rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover {
+          color: var(--t5e-primary-accent-color, #ff6400);
         }
       }
     }
