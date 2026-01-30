@@ -1,6 +1,13 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import type { TurnPlan, SelectedFeature } from '../../types/turn-prep.types';
+  import type {
+    TurnPlan,
+    SelectedFeature,
+    TurnPlanTableKey,
+    AnyFeatureTableKey,
+    Reaction,
+    ReactionPlanTableKey
+  } from '../../types/turn-prep.types';
   import { FoundryAdapter } from '../../foundry/FoundryAdapter';
   import { TurnPrepApiInstance as api } from '../../api/TurnPrepApi';
   import TurnPlanFeatureTable, { type DisplayFeature } from './TurnPlanFeatureTable.svelte';
@@ -9,9 +16,14 @@
   import {
     buildDisplayFeatureList,
     cloneSelectedFeatureArray,
+    hasDuplicateFeature,
     mergeSelectedFeatureArrays,
-    normalizeActionType
+    moveArrayItem,
+    normalizeActionType,
+    resolveTurnPlanTableForActivations,
+    isActivationCompatibleWithTable
   } from './featureDisplay.helpers';
+  import { FeatureSelector } from '../../features/feature-selection/FeatureSelector';
   import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
   import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
   import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
@@ -295,6 +307,11 @@
     };
   }
 
+  function findPlan(planId?: string | null): { index: number; plan: TurnPlan | null } {
+    const index = planId ? plans.findIndex((p) => p.id === planId) : -1;
+    return { index, plan: index >= 0 ? plans[index] : null };
+  }
+
   function cloneFeature(feature?: SelectedFeature | null): SelectedFeature | null {
     if (!feature) return null;
     return {
@@ -319,6 +336,380 @@
       merged.push(legacy);
     }
     return merged;
+  }
+
+  type FeatureDropEvent = {
+    panelKind: 'turn';
+    table: AnyFeatureTableKey;
+    ownerId?: string;
+    targetIndex: number | null;
+    copy: boolean;
+    feature?: SelectedFeature;
+    nativeItemUuid?: string;
+    source?: {
+      actorId: string;
+      sourcePlanId?: string;
+      sourceReactionId?: string;
+      sourceTable?: AnyFeatureTableKey;
+      feature?: SelectedFeature;
+    } | null;
+  };
+
+  function coerceTurnTable(table: AnyFeatureTableKey): TurnPlanTableKey {
+    if (table === 'actions' || table === 'bonusActions' || table === 'additionalFeatures') {
+      return table;
+    }
+    return 'additionalFeatures';
+  }
+
+  function getPlanTable(plan: TurnPlan, table: TurnPlanTableKey): SelectedFeature[] {
+    switch (table) {
+      case 'actions':
+        return plan.actions ?? [];
+      case 'bonusActions':
+        return plan.bonusActions ?? [];
+      case 'reactions':
+        return plan.reactions ?? [];
+      case 'additionalFeatures':
+      default:
+        return plan.additionalFeatures ?? [];
+    }
+  }
+
+  function findFeatureTable(plan: TurnPlan, featureId: string): TurnPlanTableKey | null {
+    if ((plan.actions ?? []).some((f) => f.itemId === featureId)) return 'actions';
+    if ((plan.bonusActions ?? []).some((f) => f.itemId === featureId)) return 'bonusActions';
+    if ((plan.reactions ?? []).some((f) => f.itemId === featureId)) return 'reactions';
+    if ((plan.additionalFeatures ?? []).some((f) => f.itemId === featureId)) return 'additionalFeatures';
+    return null;
+  }
+
+  function setPlanTable(plan: TurnPlan, table: TurnPlanTableKey, value: SelectedFeature[]): TurnPlan {
+    switch (table) {
+      case 'actions':
+        return { ...plan, actions: value };
+      case 'bonusActions':
+        return { ...plan, bonusActions: value };
+      case 'reactions':
+        return { ...plan, reactions: value };
+      case 'additionalFeatures':
+      default:
+        return { ...plan, additionalFeatures: value };
+    }
+  }
+
+  function getActivationsFromFeature(feature?: SelectedFeature | null): string[] {
+    if (!feature?.actionType) return [];
+    return [normalizeActionType(feature.actionType)];
+  }
+
+  function getActivationsFromItem(item: any): string[] {
+    if (!item) return [];
+    const activations: string[] = [];
+    const itemActivation = normalizeActionType(item?.system?.activation?.type);
+    if (itemActivation) activations.push(itemActivation);
+    const activities = FeatureSelector.getActivitiesForItem(item) ?? [];
+    for (const act of activities) {
+      const type = normalizeActionType(act?.activation?.type ?? act?.system?.activation?.type);
+      if (type) activations.push(type);
+    }
+    return activations;
+  }
+
+  async function buildFeatureFromUuid(uuid: string): Promise<{ feature: SelectedFeature | null; activations: string[] }> {
+    try {
+      const doc = (await (globalThis as any).fromUuid?.(uuid)) as any;
+      if (!doc) {
+        ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.ItemUnavailable'));
+        return { feature: null, activations: [] };
+      }
+      if (doc?.actor?.id && actor?.id && doc.actor.id !== actor.id) {
+        ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.ActorMismatch'));
+        return { feature: null, activations: [] };
+      }
+      const actionType = normalizeActionType(doc?.system?.activation?.type);
+      const feature: SelectedFeature = {
+        itemId: doc.id,
+        itemName: doc.name ?? doc.id,
+        itemType: doc.type ?? 'item',
+        actionType
+      };
+      const activations = getActivationsFromItem(doc);
+      return { feature, activations: activations.length ? activations : getActivationsFromFeature(feature) };
+    } catch (error) {
+      console.error('[TurnPlansPanel] Failed to resolve UUID drop', uuid, error);
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.ItemUnavailable'));
+      return { feature: null, activations: [] };
+    }
+  }
+
+  function pickTurnTableForDrop(requested: AnyFeatureTableKey, activations: string[]): TurnPlanTableKey {
+    const desired = coerceTurnTable(requested);
+    if (desired === 'additionalFeatures') return desired;
+    if (activations.some((act) => isActivationCompatibleWithTable(act, desired))) {
+      return desired;
+    }
+    const routed = coerceTurnTable(resolveTurnPlanTableForActivations(activations));
+    return routed === 'reactions' ? 'additionalFeatures' : routed;
+  }
+
+  function removeFeatureFromSource(source: FeatureDropEvent['source']): void {
+    if (!source?.feature?.itemId) return;
+    const { plan, index } = findPlan(source.sourcePlanId ?? null);
+    if (!plan || index === -1) return;
+    const table = coerceTurnTable(source.sourceTable ?? 'additionalFeatures');
+    const current = getPlanTable(plan, table);
+    const next = current.filter((f) => f.itemId !== source.feature?.itemId);
+    const nextPlans = [...plans];
+    nextPlans[index] = setPlanTable(plan, table, next);
+    plans = nextPlans;
+  }
+
+  function upsertFeatureToPlan(
+    planId: string,
+    table: TurnPlanTableKey,
+    feature: SelectedFeature,
+    targetIndex: number | null
+  ) {
+    const { plan, index } = findPlan(planId);
+    if (!plan || index === -1) return;
+    const current = getPlanTable(plan, table);
+    if (hasDuplicateFeature(current, feature)) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.DuplicateFeature'));
+      return;
+    }
+    const insertAt = Math.max(0, Math.min(current.length, targetIndex ?? current.length));
+    const next = [...current];
+    next.splice(insertAt, 0, feature);
+    const nextPlans = [...plans];
+    nextPlans[index] = setPlanTable(plan, table, next);
+    plans = nextPlans;
+    scheduleAutoSave();
+  }
+
+  function reorderPlanTable(planId: string, table: TurnPlanTableKey, fromIndex: number, toIndex: number) {
+    const { plan, index } = findPlan(planId);
+    if (!plan || index === -1) return;
+    const current = getPlanTable(plan, table);
+    if (!current.length) return;
+    const next = moveArrayItem(current, fromIndex, toIndex);
+    const nextPlans = [...plans];
+    nextPlans[index] = setPlanTable(plan, table, next);
+    plans = nextPlans;
+    scheduleAutoSave();
+  }
+
+  async function handleFeatureDrop(event: FeatureDropEvent) {
+    if (event.panelKind !== 'turn') return;
+    const targetPlanId = event.ownerId;
+    if (!targetPlanId) return;
+
+    let feature: SelectedFeature | null = event.feature ?? null;
+    let activations: string[] = feature ? getActivationsFromFeature(feature) : [];
+
+    if (!feature && event.nativeItemUuid) {
+      const resolved = await buildFeatureFromUuid(event.nativeItemUuid);
+      feature = resolved.feature;
+      activations = resolved.activations;
+    }
+
+    if (!feature) return;
+    if (!activations.length) {
+      activations = getActivationsFromFeature(feature);
+    }
+
+    const targetTable = pickTurnTableForDrop(event.table, activations);
+
+    if (!event.copy && event.source?.sourcePlanId) {
+      removeFeatureFromSource(event.source);
+    }
+
+    upsertFeatureToPlan(targetPlanId, targetTable, cloneFeature(feature) as SelectedFeature, event.targetIndex);
+  }
+
+  function handleFeatureReorder(planId: string, table: TurnPlanTableKey, fromIndex: number, toIndex: number) {
+    reorderPlanTable(planId, table, fromIndex, toIndex);
+  }
+
+  function buildTurnMoveCopyMenu(
+    currentPlanId: string,
+    feature: SelectedFeature,
+    copy: boolean
+  ): ContextMenuSection[] {
+    const turnActions: ContextMenuAction[] = [];
+    const reactionActions: ContextMenuAction[] = [];
+    const activation = normalizeActionType(feature.actionType);
+    const allowAction = activation === 'action';
+    const allowBonus = activation === 'bonus';
+    const allowReaction = activation === 'reaction';
+
+    for (const plan of plans) {
+      const planActions: ContextMenuAction[] = [];
+      if (allowAction) {
+        planActions.push({
+          id: `${plan.id}-action-${copy ? 'copy' : 'move'}`,
+          label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.Actions')}`,
+          icon: 'fa-solid fa-person-running',
+          onSelect: () => handleMoveCopyFeature(currentPlanId, plan.id, 'actions', feature, copy)
+        });
+      }
+      if (allowBonus) {
+        planActions.push({
+          id: `${plan.id}-bonus-${copy ? 'copy' : 'move'}`,
+          label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.BonusActions')}`,
+          icon: 'fa-solid fa-plus',
+          onSelect: () => handleMoveCopyFeature(currentPlanId, plan.id, 'bonusActions', feature, copy)
+        });
+      }
+      planActions.push({
+        id: `${plan.id}-additional-${copy ? 'copy' : 'move'}`,
+        label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.AdditionalFeatures')}`,
+        icon: 'fa-regular fa-circle-dot',
+        onSelect: () => handleMoveCopyFeature(currentPlanId, plan.id, 'additionalFeatures', feature, copy)
+      });
+
+      if (planActions.length) {
+        turnActions.push(...planActions);
+      }
+    }
+
+    // Reaction destinations (for parity and cross-panel moves).
+    try {
+      const turnPrepData = api.getTurnPrepData(actor);
+      const reactions = turnPrepData?.reactions ?? [];
+      for (const reaction of reactions) {
+        const reactionMenuActions: ContextMenuAction[] = [];
+        if (allowReaction) {
+          reactionMenuActions.push({
+            id: `${reaction.id}-reaction-${copy ? 'copy' : 'move'}`,
+            label: `${reaction.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} - ${FoundryAdapter.localize('TURN_PREP.Reactions.ReactionFeatures')}`,
+            icon: 'fa-solid fa-bolt',
+            onSelect: () => handleMoveCopyFeatureToReaction(currentPlanId, reaction.id, 'reactionFeatures', feature, copy)
+          });
+        }
+        reactionMenuActions.push({
+          id: `${reaction.id}-additional-${copy ? 'copy' : 'move'}`,
+          label: `${reaction.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} - ${FoundryAdapter.localize('TURN_PREP.Reactions.AdditionalFeatures')}`,
+          icon: 'fa-regular fa-circle-dot',
+          onSelect: () => handleMoveCopyFeatureToReaction(currentPlanId, reaction.id, 'additionalFeatures', feature, copy)
+        });
+        if (reactionMenuActions.length) {
+          reactionActions.push(...reactionMenuActions);
+        }
+      }
+    } catch (error) {
+      console.warn('[TurnPlansPanel] Failed to build reaction move/copy menu', error);
+    }
+
+    const sections: ContextMenuSection[] = [];
+    if (turnActions.length) {
+      sections.push({
+        id: `turns-${copy ? 'copy' : 'move'}`,
+        label: FoundryAdapter.localize('TURN_PREP.TurnPlans.Title') ?? 'Turns',
+        actions: turnActions
+      });
+    }
+    if (reactionActions.length) {
+      sections.push({
+        id: `reactions-${copy ? 'copy' : 'move'}`,
+        label: FoundryAdapter.localize('TURN_PREP.Reactions.Title') ?? 'Reactions',
+        actions: reactionActions
+      });
+    }
+    return sections;
+  }
+
+  function handleMoveCopyFeature(
+    fromPlanId: string,
+    toPlanId: string,
+    table: TurnPlanTableKey,
+    feature: SelectedFeature,
+    copy: boolean
+  ) {
+    const { plan: targetPlan } = findPlan(toPlanId);
+    if (!targetPlan) return;
+
+    if (hasDuplicateFeature(getPlanTable(targetPlan, table), feature)) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.DuplicateFeature'));
+      return;
+    }
+
+    if (!copy) {
+      const { plan: sourcePlan, index: sourceIndex } = findPlan(fromPlanId);
+      if (sourcePlan && sourceIndex >= 0) {
+        const sourceTable = findFeatureTable(sourcePlan, feature.itemId) ?? table;
+        const cleaned = getPlanTable(sourcePlan, sourceTable).filter((f) => f.itemId !== feature.itemId);
+        const nextPlans = [...plans];
+        nextPlans[sourceIndex] = setPlanTable(sourcePlan, sourceTable, cleaned);
+        plans = nextPlans;
+      }
+    }
+
+    const { plan: updatedTarget, index: targetIndex } = findPlan(toPlanId);
+    if (!updatedTarget || targetIndex < 0) return;
+    const next = [...getPlanTable(updatedTarget, table), cloneFeature(feature) as SelectedFeature];
+    const nextPlans = [...plans];
+    nextPlans[targetIndex] = setPlanTable(updatedTarget, table, next);
+    plans = nextPlans;
+    scheduleAutoSave();
+  }
+
+  async function handleMoveCopyFeatureToReaction(
+    fromPlanId: string,
+    reactionId: string,
+    table: ReactionPlanTableKey,
+    feature: SelectedFeature,
+    copy: boolean
+  ) {
+    const turnPrepData = api.getTurnPrepData(actor) ?? createEmptyTurnPrepData();
+    const reactions = Array.isArray(turnPrepData.reactions) ? [...turnPrepData.reactions] : [];
+    const reactionIndex = reactions.findIndex((r) => r.id === reactionId);
+    if (reactionIndex === -1) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.Reactions.Messages.ReactionMissing') ?? 'Reaction not found');
+      return;
+    }
+
+    const targetReaction = reactions[reactionIndex] as Reaction;
+    const currentTargets = table === 'reactionFeatures'
+      ? Array.isArray(targetReaction.reactionFeatures) ? targetReaction.reactionFeatures : []
+      : Array.isArray(targetReaction.additionalFeatures) ? targetReaction.additionalFeatures : [];
+
+    if (hasDuplicateFeature(currentTargets, feature)) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.DuplicateFeature'));
+      return;
+    }
+
+    let nextPlans = plans;
+    if (!copy) {
+      const { plan: sourcePlan, index: sourceIndex } = findPlan(fromPlanId);
+      if (sourcePlan && sourceIndex >= 0) {
+        const sourceTable = findFeatureTable(sourcePlan, feature.itemId) ?? 'additionalFeatures';
+        const cleaned = getPlanTable(sourcePlan, sourceTable).filter((f) => f.itemId !== feature.itemId);
+        nextPlans = [...plans];
+        nextPlans[sourceIndex] = setPlanTable(sourcePlan, sourceTable, cleaned);
+        plans = nextPlans;
+      }
+    }
+
+    const updatedTargets = [...currentTargets, cloneFeature(feature) as SelectedFeature];
+    const updatedReaction: Reaction = table === 'reactionFeatures'
+      ? { ...targetReaction, reactionFeatures: updatedTargets }
+      : { ...targetReaction, additionalFeatures: updatedTargets };
+    reactions[reactionIndex] = updatedReaction;
+
+    const nextData = {
+      ...turnPrepData,
+      turnPlans: (nextPlans ?? plans).map((plan) => sanitizePlan(plan)),
+      reactions
+    };
+
+    try {
+      await api.saveTurnPrepData(actor, nextData, { render: false });
+      lastSavedTurnPlansSignature = JSON.stringify(nextData.turnPlans ?? []);
+    } catch (error) {
+      console.error('[TurnPlansPanel] Failed to move/copy feature to reaction', error);
+      ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.Reactions.SaveError'));
+    }
   }
 
   function cancelPendingSave(flush = false) {
@@ -366,31 +757,16 @@
 
   function getActionFeatures(plan: TurnPlan): DisplayFeature[] {
     const features: SelectedFeature[] = Array.isArray(plan.actions) ? plan.actions : [];
-    const additional = (plan.additionalFeatures ?? []).filter(
-      (feature) => normalizeActionType(feature.actionType) === 'action'
-    );
-    return [
-      ...buildDisplayFeatureList(actor, plan.id, features, 'action-primary'),
-      ...buildDisplayFeatureList(actor, plan.id, additional, 'action-extra')
-    ];
+    return buildDisplayFeatureList(actor, plan.id, features, 'action-primary');
   }
 
   function getBonusActionFeatures(plan: TurnPlan): DisplayFeature[] {
     const features: SelectedFeature[] = Array.isArray(plan.bonusActions) ? plan.bonusActions : [];
-    const additional = (plan.additionalFeatures ?? []).filter(
-      (feature) => normalizeActionType(feature.actionType) === 'bonus'
-    );
-    return [
-      ...buildDisplayFeatureList(actor, plan.id, features, 'bonus-primary'),
-      ...buildDisplayFeatureList(actor, plan.id, additional, 'bonus-extra')
-    ];
+    return buildDisplayFeatureList(actor, plan.id, features, 'bonus-primary');
   }
 
   function getAdditionalFeatures(plan: TurnPlan): DisplayFeature[] {
-    const extras = (plan.additionalFeatures ?? []).filter((feature) => {
-      const type = normalizeActionType(feature.actionType);
-      return type !== 'action' && type !== 'bonus';
-    });
+    const extras = plan.additionalFeatures ?? [];
     return buildDisplayFeatureList(actor, plan.id, extras, 'additional');
   }
 
@@ -409,14 +785,8 @@
 
     if (target === 'action') {
       plan.actions = plan.actions.filter((feature) => feature.itemId !== featureId);
-      plan.additionalFeatures = plan.additionalFeatures.filter(
-        (feature) => !(feature.itemId === featureId && normalizeActionType(feature.actionType) === 'action')
-      );
     } else if (target === 'bonusAction') {
       plan.bonusActions = plan.bonusActions.filter((feature) => feature.itemId !== featureId);
-      plan.additionalFeatures = plan.additionalFeatures.filter(
-        (feature) => !(feature.itemId === featureId && normalizeActionType(feature.actionType) === 'bonus')
-      );
     } else {
       plan.additionalFeatures = plan.additionalFeatures.filter((feature) => feature.itemId !== featureId);
     }
@@ -691,6 +1061,13 @@
                     title={FoundryAdapter.localize('TURN_PREP.TurnPlans.Actions')}
                     actor={actor}
                     features={getActionFeatures(plan)}
+                    ownerId={plan.id}
+                    panelKind="turn"
+                    tableType="actions"
+                    onFeatureDrop={handleFeatureDrop}
+                    onReorderFeature={(from, to) => handleFeatureReorder(plan.id, 'actions', from, to)}
+                    buildMoveToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, false)}
+                    buildCopyToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, true)}
                     onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'action', featureId)}
                   />
 
@@ -699,6 +1076,13 @@
                     title={FoundryAdapter.localize('TURN_PREP.TurnPlans.BonusActions')}
                     actor={actor}
                     features={getBonusActionFeatures(plan)}
+                    ownerId={plan.id}
+                    panelKind="turn"
+                    tableType="bonusActions"
+                    onFeatureDrop={handleFeatureDrop}
+                    onReorderFeature={(from, to) => handleFeatureReorder(plan.id, 'bonusActions', from, to)}
+                    buildMoveToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, false)}
+                    buildCopyToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, true)}
                     onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'bonusAction', featureId)}
                   />
 
@@ -707,6 +1091,13 @@
                     title={FoundryAdapter.localize('TURN_PREP.TurnPlans.AdditionalFeatures')}
                     actor={actor}
                     features={getAdditionalFeatures(plan)}
+                    ownerId={plan.id}
+                    panelKind="turn"
+                    tableType="additionalFeatures"
+                    onFeatureDrop={handleFeatureDrop}
+                    onReorderFeature={(from, to) => handleFeatureReorder(plan.id, 'additionalFeatures', from, to)}
+                    buildMoveToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, false)}
+                    buildCopyToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, true)}
                     onRemoveFeature={(featureId) => handleRemoveFeature(plan.id, 'additional', featureId)}
                   />
                   </div>

@@ -17,6 +17,8 @@ export interface ContextMenuAction {
 	disabled?: boolean;
 	description?: string;
 	variant?: ContextMenuVariant;
+	/** Optional nested submenu sections */
+	submenu?: ContextMenuSection[];
 }
 
 export interface ContextMenuSection {

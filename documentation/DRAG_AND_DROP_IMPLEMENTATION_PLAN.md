@@ -35,31 +35,31 @@ Central plan for enabling drag/drop + context-menu move/copy/reorder for Turn Pr
 ## Phased To-Do & Checkpoints
 
 ### Phase 1 — Helpers
-- [ ] Activation routing helper (Turn: Action > Bonus > Additional; Reaction: Reaction > Additional).
-- [ ] Duplicate guard (same item/feature id in target table → skip + warn).
-- [ ] Drop payload builder/parser (custom MIME + UUID) and array move/reorder util.
-- [ ] Shallow clone helper for SelectedFeature.
-**Checkpoint:** Quick helper tests (script/console).
+- [x] Activation routing helper (Turn: Action > Bonus > Additional; Reaction: Reaction > Additional).
+- [x] Duplicate guard (same item/feature id in target table → skip + warn).
+- [x] Drop payload builder/parser (custom MIME + UUID) and array move/reorder util.
+- [x] Shallow clone helper for SelectedFeature.
+**Status:** Implemented; needs UI/console sanity once drops are wired.
 
 ### Phase 2 — ContextMenuHost submenu support
-- [ ] Nested/secondary menus, positioning, hover/click open, Escape/blur close all.
-- [ ] Keyboard focus within menus.
-**Checkpoint:** Open menu in UI, verify submenus render/close correctly.
+- [x] Nested/secondary menus, positioning, hover/click open, Escape/blur close all.
+- [x] Keyboard focus within menus.
+**Status:** Implemented; pending in-UI verification of submenu open/close/focus.
 
 ### Phase 3 — TurnPlanFeatureTable drag/drop + menus
-- [ ] Rows draggable with custom payload + UUID.
-- [ ] Accept drops: reorder same-table; incoming from other tables/plans/native items.
-- [ ] Emit move/copy/reorder events upward.
-- [ ] Row context menu: Move to > / Copy to > (eligible destinations filtered); Up/Down/Top/Bottom.
-- [ ] Drag-over highlight + placeholder index.
-**Checkpoint:** In UI, drag within table, between tables same plan; Shift-drag to copy; context menu move/copy works; no duplicates.
+- [x] Rows draggable with custom payload + UUID (awaiting parent wiring to consume events).
+- [x] Accept drops: reorder same-table; incoming from other tables/plans/native items (emits callbacks).
+- [x] Emit move/copy/reorder events upward (parent integration pending).
+- [x] Row context menu: Move to > / Copy to > (submenu hooks), Up/Down/Top/Bottom.
+- [x] Drag-over highlight + placeholder index.
+**Status:** Implemented in component; needs parent wiring and in-UI testing of drop/reorder and menus.
 
 ### Phase 4 — TurnPlansPanel handling
-- [ ] Drop routing (Action > Bonus > Additional), same-actor guard, duplicate guard.
-- [ ] Move/copy across plans; remove from source on move.
+- [~] Drop routing (Action > Bonus > Additional), same-actor guard, duplicate guard wired in panel handlers (needs UI test).
+- [~] Move/copy across plans via table menus and drops; remove from source on move (needs UI test).
 - [ ] Reorder plans (drag + “Move >” up/down/top/bottom).
-- [ ] Autosave/debounce after changes.
-**Checkpoint:** Drag row Plan A → Plan B; Shift-copy vs move; reorder plans; autosave once per op.
+- [ ] Autosave/debounce after changes (panel calls scheduleAutoSave after mutations; verify timing).
+**Checkpoint:** Drag row Plan A → Plan B; Shift-copy vs move; reorder plans; autosave once per op. Pending UI test.
 
 ### Phase 5 — ReactionPlansPanel handling
 - [ ] Routing (Reaction > Additional), same-actor/duplicate guards.

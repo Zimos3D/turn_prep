@@ -204,6 +204,56 @@ export interface TurnPrepData {
 }
 
 // ============================================================================
+// Drag & Drop
+// ============================================================================
+
+/**
+ * Panel kinds that accept feature drag/drop operations
+ */
+export type TurnPrepPanelKind = 'turn' | 'reaction';
+
+/**
+ * Table keys used within turn plans
+ */
+export type TurnPlanTableKey = 'actions' | 'bonusActions' | 'reactions' | 'additionalFeatures';
+
+/**
+ * Table keys used within reaction plans
+ */
+export type ReactionPlanTableKey = 'reactionFeatures' | 'additionalFeatures';
+
+/**
+ * Union of all feature table keys
+ */
+export type AnyFeatureTableKey = TurnPlanTableKey | ReactionPlanTableKey;
+
+/**
+ * Payload carried during Turn Prep feature drag operations
+ */
+export interface TurnPrepFeatureDragPayload {
+  /** Discriminator for custom drag payloads */
+  kind: 'turn-prep-feature';
+
+  /** Actor that owns the source feature */
+  actorId: string;
+
+  /** Feature being dragged */
+  feature: SelectedFeature;
+
+  /** Source plan id when dragged from a turn plan */
+  sourcePlanId?: string;
+
+  /** Source reaction id when dragged from a reaction plan */
+  sourceReactionId?: string;
+
+  /** Source table key within the plan */
+  sourceTable?: AnyFeatureTableKey;
+
+  /** Source index within that table */
+  sourceIndex?: number;
+}
+
+// ============================================================================
 // Feature Selection
 // ============================================================================
 

@@ -4,7 +4,13 @@
   import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
   import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
   import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
-  import type { SelectedFeature } from '../../types/turn-prep.types';
+  import type {
+    AnyFeatureTableKey,
+    SelectedFeature,
+    TurnPrepFeatureDragPayload,
+    TurnPrepPanelKind
+  } from '../../types/turn-prep.types';
+  import { cloneSelectedFeature, hasDuplicateFeature, parseTurnPrepDragData, setTurnPrepDragData } from './featureDisplay.helpers';
 
   export type RollDisplay = {
     ability?: string | null;
@@ -50,6 +56,17 @@
     damageEntries?: DamageDisplayEntry[];
   };
 
+  type FeatureDropEvent = {
+    panelKind: TurnPrepPanelKind;
+    table: AnyFeatureTableKey;
+    ownerId?: string;
+    targetIndex: number | null;
+    copy: boolean;
+    feature?: SelectedFeature;
+    nativeItemUuid?: string;
+    source?: TurnPrepFeatureDragPayload | null;
+  };
+
   interface Props {
     tableKey: string;
     title: string;
@@ -57,6 +74,13 @@
     features?: DisplayFeature[];
     emptyMessage?: string;
     onRemoveFeature?: (featureId: string) => void;
+    ownerId?: string;
+    panelKind?: TurnPrepPanelKind;
+    tableType?: AnyFeatureTableKey;
+    onFeatureDrop?: (payload: FeatureDropEvent) => void;
+    onReorderFeature?: (fromIndex: number, toIndex: number) => void;
+    buildMoveToMenu?: (feature: DisplayFeature) => ContextMenuSection[] | null | undefined;
+    buildCopyToMenu?: (feature: DisplayFeature) => ContextMenuSection[] | null | undefined;
   }
 
   const columnWidths = {
@@ -106,7 +130,14 @@
     actor = null,
     features = [],
     emptyMessage = FoundryAdapter.localize('TURN_PREP.TurnPlans.Table.Empty'),
-    onRemoveFeature = () => void 0
+    onRemoveFeature = () => void 0,
+    ownerId = undefined,
+    panelKind = 'turn' as TurnPrepPanelKind,
+    tableType = undefined,
+    onFeatureDrop = undefined,
+    onReorderFeature = undefined,
+    buildMoveToMenu = undefined,
+    buildCopyToMenu = undefined
   }: Props = $props();
 
   let expanded = $state(true);
@@ -115,6 +146,8 @@
   const pendingDescriptions = new Set<string>();
   const featureContextMenu = new ContextMenuController('turn-plan-feature-table');
   let activeContextRowKey = $state<string | null>(null);
+  let dragOverIndex = $state<number | null>(null);
+  let draggingRowKey = $state<string | null>(null);
 
   onMount(() => {
     const unsubscribe = featureContextMenu.subscribe((state) => {
@@ -232,6 +265,23 @@
     return FoundryAdapter.getItemFromActor(actor, feature?.itemId);
   }
 
+  function getActorId(): string | null {
+    const actorId = actor?.id ?? actor?._id ?? actor?.document?.id ?? actor?.document?._id;
+    return typeof actorId === 'string' ? actorId : null;
+  }
+
+  function deriveTableTypeFromKey(key: string): AnyFeatureTableKey {
+    const lower = (key ?? '').toLowerCase();
+    if (lower.startsWith('action')) return 'actions';
+    if (lower.startsWith('bonus')) return 'bonusActions';
+    if (lower.startsWith('reaction')) return panelKind === 'reaction' ? 'reactionFeatures' : 'reactions';
+    return 'additionalFeatures';
+  }
+
+  function getEffectiveTableType(): AnyFeatureTableKey {
+    return (tableType as AnyFeatureTableKey | undefined) ?? deriveTableTypeFromKey(tableKey);
+  }
+
   function notifyWarning(key: string, data?: Record<string, string | number>) {
     const message = data
       ? FoundryAdapter.localizeFormat(key, data)
@@ -246,6 +296,20 @@
       return null;
     }
     return item;
+  }
+
+  function notifyDuplicateFeature(): void {
+    ui.notifications?.warn(
+      FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.DuplicateFeature') ||
+        'Feature already exists in this table.'
+    );
+  }
+
+  function notifyActorMismatch(): void {
+    ui.notifications?.warn(
+      FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.ActorMismatch') ||
+        'Cannot move features between different actors.'
+    );
   }
 
   function openFeatureSheet(feature: DisplayFeature, editable: boolean): void {
@@ -268,6 +332,65 @@
   }
 
   function getFeatureContextMenuActions(feature: DisplayFeature): ContextMenuAction[] {
+    const index = features.findIndex((entry) => entry.rowKey === feature.rowKey);
+
+    const reorderActions: ContextMenuAction[] = [];
+    if (onReorderFeature && index >= 0) {
+      reorderActions.push(
+        {
+          id: 'move-up',
+          label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveUp') || 'Move Up',
+          icon: 'fa-solid fa-arrow-up',
+          disabled: index <= 0,
+          onSelect: () => onReorderFeature?.(index, Math.max(0, index - 1))
+        },
+        {
+          id: 'move-down',
+          label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveDown') || 'Move Down',
+          icon: 'fa-solid fa-arrow-down',
+          disabled: index >= features.length - 1,
+          onSelect: () => onReorderFeature?.(index, Math.min(features.length - 1, index + 1))
+        },
+        {
+          id: 'move-top',
+          label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveTop') || 'Move to Top',
+          icon: 'fa-solid fa-angles-up',
+          disabled: index <= 0,
+          onSelect: () => onReorderFeature?.(index, 0)
+        },
+        {
+          id: 'move-bottom',
+          label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveBottom') || 'Move to Bottom',
+          icon: 'fa-solid fa-angles-down',
+          disabled: index >= features.length - 1,
+          onSelect: () => onReorderFeature?.(index, features.length - 1)
+        }
+      );
+    }
+
+    const moveToSubmenu = buildMoveToMenu?.(feature) ?? [];
+    const copyToSubmenu = buildCopyToMenu?.(feature) ?? [];
+
+    const moveCopyActions: ContextMenuAction[] = [];
+    if (moveToSubmenu.length) {
+      moveCopyActions.push({
+        id: 'move-to',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveTo') || 'Move To',
+        icon: 'fa-solid fa-up-right-from-square',
+        submenu: moveToSubmenu,
+        onSelect: () => {}
+      });
+    }
+    if (copyToSubmenu.length) {
+      moveCopyActions.push({
+        id: 'copy-to',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.CopyTo') || 'Copy To',
+        icon: 'fa-regular fa-copy',
+        submenu: copyToSubmenu,
+        onSelect: () => {}
+      });
+    }
+
     return [
       {
         id: 'view',
@@ -287,6 +410,18 @@
         icon: 'fa-solid fa-message-arrow-up-right',
         onSelect: () => displayFeatureInChat(feature)
       },
+      ...moveCopyActions,
+      ...(reorderActions.length
+        ? [
+            {
+              id: 'arrange',
+              label: FoundryAdapter.localize('TURN_PREP.ContextMenu.Arrange') || 'Arrange',
+              icon: 'fa-solid fa-arrow-up-wide-short',
+              submenu: reorderActions,
+              onSelect: () => {}
+            }
+          ]
+        : []),
       {
         id: 'remove',
         label: FoundryAdapter.localize('TURN_PREP.ContextMenu.RemoveFromTurnPrep'),
@@ -321,6 +456,129 @@
         ariaLabel: `${feature.itemName} ${FoundryAdapter.localize('TURN_PREP.Common.Actions')}`
       }
     });
+  }
+
+  function handleDragStart(feature: DisplayFeature, index: number, event: DragEvent) {
+    if (!event?.dataTransfer) return;
+    const actorId = getActorId();
+    if (!actorId) return;
+
+    const cloned = cloneSelectedFeature(feature);
+    if (!cloned) return;
+
+    const payload: TurnPrepFeatureDragPayload = {
+      kind: 'turn-prep-feature',
+      actorId,
+      feature: cloned,
+      sourcePlanId: panelKind === 'turn' ? ownerId : undefined,
+      sourceReactionId: panelKind === 'reaction' ? ownerId : undefined,
+      sourceTable: getEffectiveTableType(),
+      sourceIndex: index
+    };
+
+    setTurnPrepDragData(event.dataTransfer, payload);
+    event.dataTransfer.effectAllowed = 'copyMove';
+    draggingRowKey = feature.rowKey;
+
+    // Prevent the sheet's native drop handling from kicking in
+    event.stopPropagation();
+  }
+
+  function handleDragOver(event: DragEvent, index: number | null) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer && (event.dataTransfer.dropEffect = event.shiftKey ? 'copy' : 'move');
+    dragOverIndex = index ?? features.length;
+  }
+
+  function handleDragEnter(event: DragEvent, index: number | null) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragOverIndex = index ?? features.length;
+  }
+
+  function handleDragLeave(event: DragEvent) {
+    event.stopPropagation();
+    dragOverIndex = null;
+  }
+
+  function clearDragState() {
+    dragOverIndex = null;
+    draggingRowKey = null;
+  }
+
+  function handleDrop(event: DragEvent, index: number | null) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const result = parseTurnPrepDragData(event.dataTransfer);
+    const targetIndex = index ?? features.length;
+    const targetTable = getEffectiveTableType();
+    const copy = !!event.shiftKey;
+    const actorId = getActorId();
+
+    if (!result) {
+      clearDragState();
+      return;
+    }
+
+    if (result.kind === 'turn-prep-feature') {
+      const payload = result.payload;
+      if (actorId && payload.actorId && payload.actorId !== actorId) {
+        notifyActorMismatch();
+        clearDragState();
+        return;
+      }
+
+      const feature = cloneSelectedFeature(payload.feature);
+      if (!feature) {
+        clearDragState();
+        return;
+      }
+
+      const sameOwner = ownerId && (payload.sourcePlanId === ownerId || payload.sourceReactionId === ownerId);
+      const sameTable = sameOwner && payload.sourceTable === targetTable;
+
+      if (!copy && sameTable && payload.sourceIndex !== undefined && payload.sourceIndex !== null && typeof payload.sourceIndex === 'number') {
+        onReorderFeature?.(payload.sourceIndex, targetIndex);
+        clearDragState();
+        return;
+      }
+
+      if (hasDuplicateFeature(features, feature)) {
+        notifyDuplicateFeature();
+        clearDragState();
+        return;
+      }
+
+      onFeatureDrop?.({
+        panelKind,
+        table: targetTable,
+        ownerId,
+        targetIndex,
+        copy,
+        feature,
+        source: payload
+      });
+      clearDragState();
+      return;
+    }
+
+    if (result.kind === 'foundry-item') {
+      onFeatureDrop?.({
+        panelKind,
+        table: targetTable,
+        ownerId,
+        targetIndex,
+        copy: true,
+        nativeItemUuid: result.uuid,
+        source: null
+      });
+      clearDragState();
+      return;
+    }
+
+    clearDragState();
   }
 
   function handleRowContextMenu(feature: DisplayFeature, event: MouseEvent): void {
@@ -472,9 +730,19 @@
 
   <div class={`expandable ${expanded ? 'expanded' : ''}`} role="presentation">
     <div role="presentation" class="expandable-child-animation-wrapper">
-      <div class="item-table-body">
+      <div
+        class="item-table-body"
+        role="list"
+        ondragover={(event) => handleDragOver(event, null)}
+        ondrop={(event) => handleDrop(event, null)}
+      >
         {#if !features.length}
-          <div class="tidy-table-row-container empty">
+          <div
+            class="tidy-table-row-container empty"
+            role="presentation"
+            ondragover={(event) => handleDragOver(event, null)}
+            ondrop={(event) => handleDrop(event, null)}
+          >
             <div class="tidy-table-row" style="--grid-template-columns: {templateColumns};">
               <div class="tidy-table-cell primary" style="grid-column: span 8; justify-content: center;">
                 {emptyMessage}
@@ -482,17 +750,24 @@
             </div>
           </div>
         {:else}
-          {#each features as feature (feature.rowKey)}
+          {#each features as feature, index (feature.rowKey)}
             <div
               class="tidy-table-row-container"
               data-item-id={feature.itemId}
+              draggable="true"
+              ondragstart={(event) => handleDragStart(feature, index, event)}
+              ondragover={(event) => handleDragOver(event, index)}
+              ondragenter={(event) => handleDragEnter(event, index)}
+              ondragleave={handleDragLeave}
+              ondragend={clearDragState}
+              ondrop={(event) => handleDrop(event, index)}
               role="button"
               tabindex="-1"
               aria-haspopup="menu"
               oncontextmenu={(event) => handleRowContextMenu(feature, event)}
             >
               <div
-                class={`tidy-table-row tidy-table-row-v2 ${rowStates[feature.rowKey] ? 'expanded' : ''} ${feature.isMissing ? 'missing' : ''} ${activeContextRowKey === feature.rowKey ? 'context-open' : ''}`}
+                class={`tidy-table-row tidy-table-row-v2 ${rowStates[feature.rowKey] ? 'expanded' : ''} ${feature.isMissing ? 'missing' : ''} ${activeContextRowKey === feature.rowKey ? 'context-open' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`}
                 style="--grid-template-columns: {templateColumns};"
               >
                 <button
@@ -822,6 +1097,12 @@
     .tidy-table-row-container.empty {
       background: transparent;
       margin-left: 0;
+    }
+
+    .tidy-table-row.drag-over {
+      outline: 2px dashed var(--t5e-primary-accent-color, #d0902c);
+      outline-offset: 2px;
+      background: rgba(208, 144, 44, 0.08);
     }
 
     .feature-row-details {

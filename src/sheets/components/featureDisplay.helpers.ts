@@ -1,6 +1,12 @@
 import { FoundryAdapter } from '../../foundry/FoundryAdapter';
 import { FeatureSelector } from '../../features/feature-selection/FeatureSelector';
-import type { SelectedFeature } from '../../types/turn-prep.types';
+import type {
+  AnyFeatureTableKey,
+  ReactionPlanTableKey,
+  SelectedFeature,
+  TurnPlanTableKey,
+  TurnPrepFeatureDragPayload
+} from '../../types/turn-prep.types';
 import type {
   DamageDisplayEntry,
   DisplayActivity,
@@ -9,6 +15,204 @@ import type {
 } from './TurnPlanFeatureTable.svelte';
 
 const DAMAGE_ICON_BASE_PATH = 'systems/dnd5e/icons/svg/damage';
+export const TURN_PREP_DRAG_MIME = 'application/vnd.turn-prep.feature';
+
+const UUID_FALLBACK_PATTERN = /^(Actor|Item|Scene|JournalEntry|Macro|Playlist|RollTable|User|Cards|Token|AmbientSound|PlaylistSound|Region)\./i;
+
+export type TurnPrepDragParseResult =
+  | { kind: 'turn-prep-feature'; payload: TurnPrepFeatureDragPayload }
+  | { kind: 'foundry-item'; uuid: string }
+  | null;
+
+export function resolveTurnPlanTableForActivations(
+  activations: Array<string | null | undefined>
+): TurnPlanTableKey {
+  const normalized = normalizeActivationTypes(activations);
+  if (normalized.has('action')) return 'actions';
+  if (normalized.has('bonus') || normalized.has('bonus action')) return 'bonusActions';
+  if (normalized.has('reaction')) return 'reactions';
+  return 'additionalFeatures';
+}
+
+export function resolveReactionPlanTableForActivations(
+  activations: Array<string | null | undefined>
+): ReactionPlanTableKey {
+  const normalized = normalizeActivationTypes(activations);
+  if (normalized.has('reaction')) return 'reactionFeatures';
+  return 'additionalFeatures';
+}
+
+export function isActivationCompatibleWithTable(
+  activation: string | null | undefined,
+  table: AnyFeatureTableKey
+): boolean {
+  if (table === 'additionalFeatures') return true;
+  const normalized = normalizeSingleActivation(activation);
+  if (!normalized) return false;
+  const required = getRequiredActivationForTable(table);
+  return required ? normalized === required : false;
+}
+
+export function hasDuplicateFeature(
+  list: SelectedFeature[] | null | undefined,
+  feature: SelectedFeature | null | undefined
+): boolean {
+  const targetId = feature?.itemId;
+  if (!targetId) return false;
+  return (list ?? []).some((entry) => entry?.itemId === targetId);
+}
+
+export function moveArrayItem<T>(list: readonly T[], fromIndex: number, toIndex: number): T[] {
+  if (!Array.isArray(list) || list.length === 0) return Array.isArray(list) ? Array.from(list) : [];
+  if (!Number.isFinite(fromIndex) || !Number.isFinite(toIndex)) {
+    return Array.from(list);
+  }
+
+  const array = Array.from(list);
+  const clampedFrom = clampIndex(fromIndex, array.length);
+  const clampedTo = clampIndex(toIndex, array.length);
+  if (clampedFrom === clampedTo) {
+    return array;
+  }
+
+  const [item] = array.splice(clampedFrom, 1);
+  array.splice(clampedTo, 0, item as T);
+  return array;
+}
+
+export function setTurnPrepDragData(
+  dataTransfer: DataTransfer | null,
+  payload: TurnPrepFeatureDragPayload
+): void {
+  if (!dataTransfer) return;
+  const serialized = JSON.stringify(payload);
+  dataTransfer.setData(TURN_PREP_DRAG_MIME, serialized);
+  dataTransfer.setData('application/json', serialized);
+
+  const uuid = buildActorItemUuid(payload.actorId, payload.feature?.itemId);
+  if (uuid) {
+    dataTransfer.setData('text/plain', uuid);
+  }
+}
+
+export function parseTurnPrepDragData(dataTransfer: DataTransfer | null): TurnPrepDragParseResult {
+  if (!dataTransfer) return null;
+
+  const custom = dataTransfer.getData(TURN_PREP_DRAG_MIME);
+  const customPayload = parseTurnPrepPayload(custom);
+  if (customPayload) {
+    return { kind: 'turn-prep-feature', payload: customPayload };
+  }
+
+  const json = dataTransfer.getData('application/json');
+  const parsedJson = parseJson(json);
+  const payloadFromJson = parseTurnPrepPayloadFromObject(parsedJson);
+  if (payloadFromJson) {
+    return { kind: 'turn-prep-feature', payload: payloadFromJson };
+  }
+
+  const uuidFromJson = parseUuidFromObject(parsedJson);
+  if (uuidFromJson) {
+    return { kind: 'foundry-item', uuid: uuidFromJson };
+  }
+
+  const plain = dataTransfer.getData('text/plain');
+  const uuid = parseUuidFromText(plain);
+  if (uuid) {
+    return { kind: 'foundry-item', uuid };
+  }
+
+  return null;
+}
+
+function normalizeActivationTypes(values: Array<string | null | undefined>): Set<string> {
+  const set = new Set<string>();
+  for (const value of values ?? []) {
+    const normalized = normalizeSingleActivation(value);
+    if (normalized) {
+      set.add(normalized);
+    }
+  }
+  return set;
+}
+
+function normalizeSingleActivation(value: string | null | undefined): string | null {
+  const normalized = normalizeActionType(value);
+  const trimmed = normalized.trim();
+  if (!trimmed) return null;
+  if (trimmed === 'bonus action') return 'bonus';
+  return trimmed;
+}
+
+function getRequiredActivationForTable(table: AnyFeatureTableKey): string | null {
+  const map: Record<AnyFeatureTableKey, string | null> = {
+    actions: 'action',
+    bonusActions: 'bonus',
+    reactions: 'reaction',
+    reactionFeatures: 'reaction',
+    additionalFeatures: null
+  };
+  return map[table] ?? null;
+}
+
+function clampIndex(index: number, length: number): number {
+  if (length <= 1) return 0;
+  const max = length - 1;
+  if (index < 0) return 0;
+  if (index > max) return max;
+  return Math.floor(index);
+}
+
+function buildActorItemUuid(actorId?: string | null, itemId?: string | null): string | null {
+  if (!actorId || !itemId) return null;
+  return `Actor.${actorId}.Item.${itemId}`;
+}
+
+function parseTurnPrepPayload(serialized: string | null | undefined): TurnPrepFeatureDragPayload | null {
+  if (!serialized) return null;
+  const parsed = parseJson(serialized);
+  return parseTurnPrepPayloadFromObject(parsed);
+}
+
+function parseTurnPrepPayloadFromObject(value: unknown): TurnPrepFeatureDragPayload | null {
+  if (!value || typeof value !== 'object') return null;
+  const payload = value as TurnPrepFeatureDragPayload;
+  if (payload.kind !== 'turn-prep-feature') return null;
+  if (!payload.feature?.itemId || !payload.actorId) return null;
+  return payload;
+}
+
+function parseUuidFromObject(value: unknown): string | null {
+  const candidate = (value as any)?.uuid ?? (value as any)?.data?.uuid;
+  if (typeof candidate === 'string' && candidate.trim().length) {
+    return candidate.trim();
+  }
+  return null;
+}
+
+function parseUuidFromText(value: string | null | undefined): string | null {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsedJson = parseJson(trimmed);
+  const uuidFromJson = parseUuidFromObject(parsedJson);
+  if (uuidFromJson) return uuidFromJson;
+
+  if (UUID_FALLBACK_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+  return null;
+}
+
+function parseJson(value: string | null | undefined): any {
+  if (typeof value !== 'string' || !value.trim().length) return null;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return null;
+  }
+}
 
 export function cloneSelectedFeature(feature?: SelectedFeature | null): SelectedFeature | null {
   if (!feature) return null;
