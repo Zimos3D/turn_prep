@@ -7,7 +7,8 @@ Central plan for enabling drag/drop + context-menu move/copy/reorder for Turn Pr
 - Move/Copy menus surface Action/Bonus/Reaction/Additional as available and honor Shift for copy.
 - Drag/drop between Action and Bonus tables respects explicit targets when compatible; dual-activation items route correctly.
 - Arrange submenu renders with icons and actions, and submenu interaction (hover/click/Escape) works as expected.
-- Feature table reorders and drop/move/copy flows trigger debounced autosave callbacks in code; plan/reaction card-level reordering is not yet wired.
+- Feature table reorders and drop/move/copy flows trigger debounced autosave callbacks in code.
+- Plan/Reaction/DMQ card reordering is by context-menu Arrange only (drag/drop intentionally disabled for better UX) with the same Up/Down/Top/Bottom icons.
 
 ## High-Level Rules
 - Activations considered: Action, Bonus Action, Reaction. Anything else → Additional Features.
@@ -63,20 +64,19 @@ Central plan for enabling drag/drop + context-menu move/copy/reorder for Turn Pr
 ### Phase 4 — TurnPlansPanel handling
 - [x] Drop routing (Action > Bonus > Additional), same-actor guard, duplicate guard wired in panel handlers (tested).
 - [x] Move/copy across plans via table menus and drops; remove from source on move (tested).
-- [ ] Reorder plans (drag + “Move >” up/down/top/bottom) — not implemented yet (no card-level drag/menu wiring).
+- [x] Reorder plans via Arrange submenu (Up/Down/Top/Bottom); drag/drop intentionally disabled for plan cards.
 - [ ] Autosave/debounce after changes — feature/table mutations hit the debounced save; plan-level autosave cadence still unverified in UI.
-**Checkpoint:** Implement plan card reorder/move menu and confirm autosave cadence (once per op).
+**Checkpoint:** Validate plan-level autosave cadence (once per op) in UI.
 
 ### Phase 5 — ReactionPlansPanel handling
 - [x] Routing (Reaction > Additional), same-actor/duplicate guards; move/copy/drop tested with Action/Bonus/Reaction features.
-- [ ] Reorder reaction cards; context menu moves — not implemented yet (no card-level drag/menu wiring).
+- [x] Reorder reaction cards via Arrange submenu (Up/Down/Top/Bottom); drag/drop intentionally disabled.
 - [ ] Autosave cadence — feature/table mutations hit the debounced save; overall timing still unverified in UI.
-**Checkpoint:** Add reaction card reorder/move menu and confirm autosave cadence.
+**Checkpoint:** Confirm reaction-card autosave cadence (once per op) in UI.
 
 ### Phase 6 — DMQuestionsPanel
-- [ ] Add drag/reorder for DMQ cards.
-- [ ] Add “Move >” (Up/Down/Top/Bottom) context menu.
-**Checkpoint:** Reorder DM Questions by drag and menu.
+- [x] Add Arrange submenu (Up/Down/Top/Bottom) for DMQ rows; drag/drop intentionally disabled.
+**Checkpoint:** Quick UI pass to confirm Arrange flow feels good.
 
 ### Phase 7 — Foundry native Item drop integration
 - [x] Accept native Item UUID drops on tables/panels; build SelectedFeature from `fromUuid`.

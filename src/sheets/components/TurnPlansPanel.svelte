@@ -925,7 +925,60 @@
     ui.notifications?.info(FoundryAdapter.localize('TURN_PREP.Common.ComingSoon'));
   }
 
+  function reorderPlans(fromIndex: number, toIndex: number) {
+    const boundedFrom = Math.max(0, Math.min(plans.length - 1, fromIndex));
+    const boundedTo = Math.max(0, Math.min(plans.length - 1, toIndex));
+    if (boundedFrom === boundedTo) return;
+    plans = moveArrayItem(plans, boundedFrom, boundedTo);
+    scheduleAutoSave();
+  }
+
+  function buildPlanReorderActions(planId: string): ContextMenuAction[] {
+    const index = plans.findIndex((p) => p.id === planId);
+    if (index === -1) return [];
+    const total = plans.length;
+    return [
+      {
+        id: 'move-up',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveUp') || 'Move Up',
+        icon: 'fa-solid fa-angle-up',
+        onSelect: () => reorderPlans(index, Math.max(0, index - 1))
+      },
+      {
+        id: 'move-down',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveDown') || 'Move Down',
+        icon: 'fa-solid fa-angle-down',
+        onSelect: () => reorderPlans(index, Math.min(total - 1, index + 1))
+      },
+      {
+        id: 'move-top',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveTop') || 'Move to Top',
+        icon: 'fa-solid fa-angles-up',
+        onSelect: () => reorderPlans(index, 0)
+      },
+      {
+        id: 'move-bottom',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveBottom') || 'Move to Bottom',
+        icon: 'fa-solid fa-angles-down',
+        onSelect: () => reorderPlans(index, total - 1)
+      }
+    ];
+  }
+
+  function buildPlanArrangeSubmenu(planId: string): ContextMenuSection[] {
+    const actions = buildPlanReorderActions(planId);
+    return actions.length
+      ? [
+          {
+            id: `${planId}-reorder`,
+            actions
+          }
+        ]
+      : [];
+  }
+
   function getPlanContextMenuActions(plan: TurnPlan): ContextMenuAction[] {
+    const arrangeSubmenu = buildPlanArrangeSubmenu(plan.id);
     return [
       {
         id: 'duplicate',
@@ -951,9 +1004,21 @@
         label: FoundryAdapter.localize('TURN_PREP.TurnPlans.ContextMenu.AddToFavorites'),
         icon: 'fa-regular fa-star',
         onSelect: () => handleFavoritePlan(plan.id)
-      }
+      },
+      ...(arrangeSubmenu.length
+        ? [
+            {
+              id: 'arrange',
+              label: FoundryAdapter.localize('TURN_PREP.ContextMenu.Arrange') || 'Arrange',
+              icon: 'fa-solid fa-arrow-up-wide-short',
+              submenu: arrangeSubmenu,
+              onSelect: () => {}
+            }
+          ]
+        : [])
     ];
   }
+
 
   function buildPlanContextMenuSections(plan: TurnPlan): ContextMenuSection[] {
     return [

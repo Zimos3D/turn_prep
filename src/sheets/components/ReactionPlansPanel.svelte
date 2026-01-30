@@ -375,6 +375,13 @@
     }, AUTO_SAVE_DEBOUNCE_MS);
   }
 
+  function reorderReactions(fromIndex: number, toIndex: number) {
+    if (!reactions.length) return;
+    const next = moveArrayItem(reactions, fromIndex, toIndex);
+    reactions = next;
+    scheduleAutoSave();
+  }
+
   function createNewReaction() {
     const newReaction: Reaction = {
       id: foundry.utils.randomID(),
@@ -767,6 +774,47 @@
   }
 
   function getReactionContextMenuActions(reaction: Reaction): ContextMenuAction[] {
+    const index = reactions.findIndex((r) => r.id === reaction.id);
+    const total = reactions.length;
+
+    const arrangeActions: ContextMenuAction[] = index === -1
+      ? []
+      : [
+          {
+            id: 'move-up',
+            label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveUp') || 'Move Up',
+            icon: 'fa-solid fa-angle-up',
+            onSelect: () => reorderReactions(index, Math.max(0, index - 1))
+          },
+          {
+            id: 'move-down',
+            label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveDown') || 'Move Down',
+            icon: 'fa-solid fa-angle-down',
+            onSelect: () => reorderReactions(index, Math.min(total - 1, index + 1))
+          },
+          {
+            id: 'move-top',
+            label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveTop') || 'Move to Top',
+            icon: 'fa-solid fa-angles-up',
+            onSelect: () => reorderReactions(index, 0)
+          },
+          {
+            id: 'move-bottom',
+            label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveBottom') || 'Move to Bottom',
+            icon: 'fa-solid fa-angles-down',
+            onSelect: () => reorderReactions(index, total - 1)
+          }
+        ];
+
+    const arrangeSubmenu: ContextMenuSection[] = arrangeActions.length
+      ? [
+          {
+            id: `${reaction.id}-reorder`,
+            actions: arrangeActions
+          }
+        ]
+      : [];
+
     return [
       {
         id: 'duplicate',
@@ -780,7 +828,18 @@
         icon: 'fa-regular fa-trash-can',
         variant: 'destructive',
         onSelect: () => void deleteReaction(reaction.id)
-      }
+      },
+      ...(arrangeSubmenu.length
+        ? [
+            {
+              id: 'arrange',
+              label: FoundryAdapter.localize('TURN_PREP.ContextMenu.Arrange') || 'Arrange',
+              icon: 'fa-solid fa-arrow-up-wide-short',
+              submenu: arrangeSubmenu,
+              onSelect: () => {}
+            }
+          ]
+        : [])
     ];
   }
 
@@ -828,6 +887,7 @@
 
     openReactionContextMenu(reaction, { x: event.clientX, y: event.clientY });
   }
+
 </script>
 
 {#if loading}

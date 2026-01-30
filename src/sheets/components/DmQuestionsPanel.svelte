@@ -3,6 +3,7 @@
   import type { Actor5e } from 'src/foundry/foundry.types';
   import { FLAG_SCOPE, FLAG_KEY_DATA } from 'src/constants';
   import { info, error } from 'src/utils/logging';
+  import { moveArrayItem } from 'src/utils/data';
   import { FoundryAdapter } from 'src/foundry/FoundryAdapter';
   import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
   import { ContextMenuController } from 'src/features/context-menu/ContextMenuController';
@@ -136,6 +137,12 @@
     saveQuestions();
   }
 
+  function reorderQuestions(fromIndex: number, toIndex: number) {
+    if (!questions.length) return;
+    questions = moveArrayItem(questions, fromIndex, toIndex);
+    debouncedSave();
+  }
+
   async function whisperToDm(index: number) {
     const q = questions[index];
     if (!q.question) return;
@@ -169,6 +176,41 @@
   }
 
   function getQuestionMenuActions(index: number): ContextMenuAction[] {
+    const total = questions.length;
+    const arrangeActions: ContextMenuAction[] = [
+      {
+        id: 'move-up',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveUp') || 'Move Up',
+        icon: 'fa-solid fa-angle-up',
+        onSelect: () => reorderQuestions(index, Math.max(0, index - 1))
+      },
+      {
+        id: 'move-down',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveDown') || 'Move Down',
+        icon: 'fa-solid fa-angle-down',
+        onSelect: () => reorderQuestions(index, Math.min(total - 1, index + 1))
+      },
+      {
+        id: 'move-top',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveTop') || 'Move to Top',
+        icon: 'fa-solid fa-angles-up',
+        onSelect: () => reorderQuestions(index, 0)
+      },
+      {
+        id: 'move-bottom',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveBottom') || 'Move to Bottom',
+        icon: 'fa-solid fa-angles-down',
+        onSelect: () => reorderQuestions(index, total - 1)
+      }
+    ];
+
+    const arrangeSubmenu: ContextMenuSection[] = [
+      {
+        id: `dm-question-${index}-reorder`,
+        actions: arrangeActions
+      }
+    ];
+
     return [
       {
         id: 'whisper',
@@ -187,6 +229,13 @@
         label: FoundryAdapter.localize('TURN_PREP.DmQuestions.ContextMenu.Duplicate'),
         icon: 'fas fa-copy',
         onSelect: () => duplicateQuestion(index)
+      },
+      {
+        id: 'arrange',
+        label: FoundryAdapter.localize('TURN_PREP.ContextMenu.Arrange') || 'Arrange',
+        icon: 'fa-solid fa-arrow-up-wide-short',
+        submenu: arrangeSubmenu,
+        onSelect: () => {}
       },
       {
         id: 'delete',
@@ -242,6 +291,7 @@
 
     openQuestionContextMenu(index, { x: event.clientX, y: event.clientY });
   }
+
 </script>
 
 <div class="turn-prep-panel turn-prep-dm-questions">
@@ -262,42 +312,42 @@
 
   {#if !collapsed}
     <div class="turn-prep-panel-list questions-list">
-    {#each questions as q, i}
-      <div
-        class={`turn-prep-panel-card question-row ${activeContextIndex === i ? 'context-open' : ''}`}
-        role="group"
-        tabindex="-1"
-        oncontextmenu={(event) => handleQuestionContextMenu(i, event)}
-      >
-        <div class="question-inputs">
-          <input
-            type="text"
-            class="turn-prep-input question-input"
-            placeholder="What do you want to ask the DM?"
-            value={q.question}
-            oninput={(e) => handleInput(i, 'question', e.currentTarget.value)}
-          />
-          <textarea
-            class="turn-prep-textarea answer-input"
-            placeholder="DM's answer (or your notes)"
-            value={q.answer}
-            oninput={(e) => handleInput(i, 'answer', e.currentTarget.value)}
-          ></textarea>
+      {#each questions as q, i}
+        <div
+          class={`turn-prep-panel-card question-row ${activeContextIndex === i ? 'context-open' : ''}`}
+          role="group"
+          tabindex="-1"
+          oncontextmenu={(event) => handleQuestionContextMenu(i, event)}
+        >
+          <div class="question-inputs">
+            <input
+              type="text"
+              class="turn-prep-input question-input"
+              placeholder="What do you want to ask the DM?"
+              value={q.question}
+              oninput={(e) => handleInput(i, 'question', e.currentTarget.value)}
+            />
+            <textarea
+              class="turn-prep-textarea answer-input"
+              placeholder="DM's answer (or your notes)"
+              value={q.answer}
+              oninput={(e) => handleInput(i, 'answer', e.currentTarget.value)}
+            ></textarea>
+          </div>
+          <div class="question-actions">
+            <button
+              type="button"
+              class={`question-menu-btn ${activeContextIndex === i ? 'is-active' : ''}`}
+              title={FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenuLabel')}
+              aria-haspopup="menu"
+              aria-expanded={activeContextIndex === i ? 'true' : 'false'}
+              onclick={(event) => handleQuestionMenuButton(i, event)}
+            >
+              <i class="fa-solid fa-ellipsis-vertical"></i>
+            </button>
+          </div>
         </div>
-        <div class="question-actions">
-          <button
-            type="button"
-            class={`question-menu-btn ${activeContextIndex === i ? 'is-active' : ''}`}
-            title={FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenuLabel')}
-            aria-haspopup="menu"
-            aria-expanded={activeContextIndex === i ? 'true' : 'false'}
-            onclick={(event) => handleQuestionMenuButton(i, event)}
-          >
-            <i class="fa-solid fa-ellipsis-vertical"></i>
-          </button>
-        </div>
-      </div>
-    {/each}
+      {/each}
     </div>
   {/if}
 </div>
