@@ -9,6 +9,8 @@ Central plan for enabling drag/drop + context-menu move/copy/reorder for Turn Pr
 - Arrange submenu renders with icons and actions, and submenu interaction (hover/click/Escape) works as expected.
 - Feature table reorders and drop/move/copy flows trigger debounced autosave callbacks in code.
 - Plan/Reaction/DMQ card reordering is by context-menu Arrange only (drag/drop intentionally disabled for better UX) with the same Up/Down/Top/Bottom icons.
+- Autosave cadence verified in UI for Arrange/move/copy across plans, reactions, and DMQs (single save per op observed).
+- Known cosmetic: in some layouts the sheet resizer can overlay the context menu when it overlaps the lower-right corner; menus otherwise behave correctly.
 
 ## High-Level Rules
 - Activations considered: Action, Bonus Action, Reaction. Anything else → Additional Features.
@@ -65,18 +67,18 @@ Central plan for enabling drag/drop + context-menu move/copy/reorder for Turn Pr
 - [x] Drop routing (Action > Bonus > Additional), same-actor guard, duplicate guard wired in panel handlers (tested).
 - [x] Move/copy across plans via table menus and drops; remove from source on move (tested).
 - [x] Reorder plans via Arrange submenu (Up/Down/Top/Bottom); drag/drop intentionally disabled for plan cards.
-- [ ] Autosave/debounce after changes — feature/table mutations hit the debounced save; plan-level autosave cadence still unverified in UI.
-**Checkpoint:** Validate plan-level autosave cadence (once per op) in UI.
+- [x] Autosave/debounce after changes — verified single save per Arrange/move/copy.
+**Checkpoint:** None (complete for current scope).
 
 ### Phase 5 — ReactionPlansPanel handling
 - [x] Routing (Reaction > Additional), same-actor/duplicate guards; move/copy/drop tested with Action/Bonus/Reaction features.
 - [x] Reorder reaction cards via Arrange submenu (Up/Down/Top/Bottom); drag/drop intentionally disabled.
-- [ ] Autosave cadence — feature/table mutations hit the debounced save; overall timing still unverified in UI.
-**Checkpoint:** Confirm reaction-card autosave cadence (once per op) in UI.
+- [x] Autosave cadence — verified single save per Arrange/move/copy.
+**Checkpoint:** None (complete for current scope).
 
 ### Phase 6 — DMQuestionsPanel
 - [x] Add Arrange submenu (Up/Down/Top/Bottom) for DMQ rows; drag/drop intentionally disabled.
-**Checkpoint:** Quick UI pass to confirm Arrange flow feels good.
+**Checkpoint:** Complete (Arrange flow confirmed; saves behave as expected).
 
 ### Phase 7 — Foundry native Item drop integration
 - [x] Accept native Item UUID drops on tables/panels; build SelectedFeature from `fromUuid`.
@@ -84,16 +86,16 @@ Central plan for enabling drag/drop + context-menu move/copy/reorder for Turn Pr
 **Checkpoint:** Cross-actor warning path can be re-checked if behavior changes, but current flow exercised with native drops.
 
 ### Phase 8 — Styling/UX polish
-- [ ] Drag-over highlights/placeholders for rows/cards (current visuals acceptable; revisit if UX polish cycle runs).
-- [ ] Warnings/toasts for duplicate or cross-actor drops (logic present; confirm UX surface if polishing).
-**Checkpoint:** Visual pass and confirm warning surfacing if a UX polish pass is scheduled.
+- [x] Drag-over highlights/placeholders for rows/cards (current visuals acceptable; revisit if UX polish cycle runs).
+- [x] Warnings/toasts for duplicate or cross-actor drops (logic present; confirmed in UI).
+**Checkpoint:** Complete for current scope; revisit only if further polish is desired.
 
 ### Phase 9 — Final regression
-- [ ] Move/copy within/between plans and to reactions; Reaction-only → Turn Plan Additional; Action/Bonus-only → Reaction Additional.
-- [ ] Shift-copy vs move.
-- [ ] Context menu Move to/Copy to and Move > flows.
-- [ ] Autosave fires once per operation.
-**Checkpoint:** Run scenarios in Foundry; console clean.
+- [x] Move/copy within/between plans and to reactions; Reaction-only → Turn Plan Additional; Action/Bonus-only → Reaction Additional.
+- [x] Shift-copy vs move.
+- [x] Context menu Move to/Copy to and Move > flows.
+- [x] Autosave fires once per operation.
+**Checkpoint:** Complete; scenarios validated in Foundry; console clean.
 
 ## Testing Notes (Foundry console)
 - Resolve an item:  

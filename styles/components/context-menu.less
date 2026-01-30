@@ -4,9 +4,17 @@
  * Shared presentation for any floating context menu in the Turn Prep UI.
  */
 
+.turn-prep-context-menu-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+
 .turn-prep-context-menu {
   position: fixed;
-  z-index: 10050;
+  z-index: 10000;
+  pointer-events: auto;
   min-width: 11rem;
   max-width: 18rem;
   padding: 0.35rem;
@@ -20,7 +28,7 @@
 }
 
 .turn-prep-context-menu--submenu {
-  z-index: 10051;
+  z-index: 10001;
 }
 
 .turn-prep-context-menu__sections {
@@ -64,6 +72,7 @@
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
   text-align: left;
+  position: relative;
 }
 
 .turn-prep-context-menu__item-text {
@@ -80,15 +89,18 @@
   font-size: 0.9rem;
 }
 
+.turn-prep-context-menu__item:focus,
 .turn-prep-context-menu__item:focus-visible {
-  outline: 2px solid var(--t5e-primary-accent-color, #d0902c);
-  outline-offset: 1px;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
-.turn-prep-context-menu__item:hover {
-  background: rgba(255, 255, 255, 0.08);
+.turn-prep-context-menu__item:hover,
+.turn-prep-context-menu__item:focus-visible {
+  background: rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22) inset !important;
+  color: rgba(255, 255, 255, 0.97);
 }
-
 .turn-prep-context-menu__item.is-destructive {
   color: var(--t5e-warning-accent-color, #d2643a);
 }
