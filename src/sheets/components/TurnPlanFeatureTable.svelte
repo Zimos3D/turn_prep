@@ -333,43 +333,49 @@
 
   function getFeatureContextMenuActions(feature: DisplayFeature): ContextMenuAction[] {
     const index = features.findIndex((entry) => entry.rowKey === feature.rowKey);
+    const total = Array.isArray(features) ? features.length : 0;
+    const canReorder = typeof onReorderFeature === 'function' && total > 0 && index >= 0;
 
     const reorderActions: ContextMenuAction[] = [];
-    if (onReorderFeature && index >= 0) {
+    if (canReorder) {
       reorderActions.push(
         {
           id: 'move-up',
           label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveUp') || 'Move Up',
-          icon: 'fa-solid fa-arrow-up',
-          disabled: index <= 0,
+          icon: 'fa-solid fa-angle-up',
           onSelect: () => onReorderFeature?.(index, Math.max(0, index - 1))
         },
         {
           id: 'move-down',
           label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveDown') || 'Move Down',
-          icon: 'fa-solid fa-arrow-down',
-          disabled: index >= features.length - 1,
-          onSelect: () => onReorderFeature?.(index, Math.min(features.length - 1, index + 1))
+          icon: 'fa-solid fa-angle-down',
+          onSelect: () => onReorderFeature?.(index, Math.min(total - 1, index + 1))
         },
         {
           id: 'move-top',
           label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveTop') || 'Move to Top',
           icon: 'fa-solid fa-angles-up',
-          disabled: index <= 0,
           onSelect: () => onReorderFeature?.(index, 0)
         },
         {
           id: 'move-bottom',
           label: FoundryAdapter.localize('TURN_PREP.ContextMenu.MoveBottom') || 'Move to Bottom',
           icon: 'fa-solid fa-angles-down',
-          disabled: index >= features.length - 1,
-          onSelect: () => onReorderFeature?.(index, features.length - 1)
+          onSelect: () => onReorderFeature?.(index, total - 1)
         }
       );
     }
 
     const moveToSubmenu = buildMoveToMenu?.(feature) ?? [];
     const copyToSubmenu = buildCopyToMenu?.(feature) ?? [];
+    const arrangeSubmenu: ContextMenuSection[] = reorderActions.length
+      ? [
+          {
+            id: `${feature.rowKey}-reorder`,
+            actions: reorderActions
+          }
+        ]
+      : [];
 
     const moveCopyActions: ContextMenuAction[] = [];
     if (moveToSubmenu.length) {
@@ -411,13 +417,13 @@
         onSelect: () => displayFeatureInChat(feature)
       },
       ...moveCopyActions,
-      ...(reorderActions.length
+      ...(arrangeSubmenu.length
         ? [
             {
               id: 'arrange',
               label: FoundryAdapter.localize('TURN_PREP.ContextMenu.Arrange') || 'Arrange',
               icon: 'fa-solid fa-arrow-up-wide-short',
-              submenu: reorderActions,
+              submenu: arrangeSubmenu,
               onSelect: () => {}
             }
           ]

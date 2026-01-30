@@ -416,6 +416,15 @@
     return activations;
   }
 
+  function getActivationsForFeature(feature?: SelectedFeature | null): string[] {
+    if (feature?.itemId) {
+      const item = actor?.items?.get?.(feature.itemId);
+      const fromItem = getActivationsFromItem(item);
+      if (fromItem.length) return fromItem;
+    }
+    return getActivationsFromFeature(feature);
+  }
+
   async function buildFeatureFromUuid(uuid: string): Promise<{ feature: SelectedFeature | null; activations: string[] }> {
     try {
       const doc = (await (globalThis as any).fromUuid?.(uuid)) as any;
@@ -446,9 +455,13 @@
   function pickTurnTableForDrop(requested: AnyFeatureTableKey, activations: string[]): TurnPlanTableKey {
     const desired = coerceTurnTable(requested);
     if (desired === 'additionalFeatures') return desired;
-    if (activations.some((act) => isActivationCompatibleWithTable(act, desired))) {
+
+    // Honor explicit table drops when compatible
+    const isDesiredCompatible = activations.some((act) => isActivationCompatibleWithTable(act, desired));
+    if (isDesiredCompatible) {
       return desired;
     }
+
     const routed = coerceTurnTable(resolveTurnPlanTableForActivations(activations));
     return routed === 'reactions' ? 'additionalFeatures' : routed;
   }
@@ -505,7 +518,7 @@
     if (!targetPlanId) return;
 
     let feature: SelectedFeature | null = event.feature ?? null;
-    let activations: string[] = feature ? getActivationsFromFeature(feature) : [];
+    let activations: string[] = feature ? getActivationsForFeature(feature) : [];
 
     if (!feature && event.nativeItemUuid) {
       const resolved = await buildFeatureFromUuid(event.nativeItemUuid);
@@ -515,7 +528,7 @@
 
     if (!feature) return;
     if (!activations.length) {
-      activations = getActivationsFromFeature(feature);
+      activations = getActivationsForFeature(feature);
     }
 
     const targetTable = pickTurnTableForDrop(event.table, activations);
@@ -538,10 +551,11 @@
   ): ContextMenuSection[] {
     const turnActions: ContextMenuAction[] = [];
     const reactionActions: ContextMenuAction[] = [];
-    const activation = normalizeActionType(feature.actionType);
-    const allowAction = activation === 'action';
-    const allowBonus = activation === 'bonus';
-    const allowReaction = activation === 'reaction';
+    const activations = getActivationsForFeature(feature);
+    const activationSet = new Set(activations.map((a) => normalizeActionType(a)));
+    const allowAction = activationSet.has('action');
+    const allowBonus = activationSet.has('bonus');
+    const allowReaction = activationSet.has('reaction');
 
     for (const plan of plans) {
       const planActions: ContextMenuAction[] = [];

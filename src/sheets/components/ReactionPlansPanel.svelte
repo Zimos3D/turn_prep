@@ -1,6 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Reaction, SelectedFeature } from '../../types/turn-prep.types';
+  import type {
+    AnyFeatureTableKey,
+    Reaction,
+    ReactionPlanTableKey,
+    SelectedFeature,
+    TurnPlan,
+    TurnPlanTableKey,
+    TurnPrepFeatureDragPayload
+  } from '../../types/turn-prep.types';
   import { FoundryAdapter } from '../../foundry/FoundryAdapter';
   import { TurnPrepApiInstance as api } from '../../api/TurnPrepApi';
   import TurnPlanFeatureTable, { type DisplayFeature } from './TurnPlanFeatureTable.svelte';
@@ -9,8 +17,14 @@
   import {
     buildDisplayFeatureList,
     cloneSelectedFeatureArray,
-    mergeSelectedFeatureArrays
+    cloneSelectedFeature,
+    hasDuplicateFeature,
+    mergeSelectedFeatureArrays,
+    moveArrayItem,
+    normalizeActionType,
+    resolveReactionPlanTableForActivations
   } from './featureDisplay.helpers';
+  import { FeatureSelector } from '../../features/feature-selection/FeatureSelector';
   import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
   import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
   import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
@@ -177,6 +191,146 @@
     };
   }
 
+  type FeatureDropEvent = {
+    panelKind: 'reaction';
+    table: AnyFeatureTableKey;
+    ownerId?: string;
+    targetIndex: number | null;
+    copy: boolean;
+    feature?: SelectedFeature;
+    nativeItemUuid?: string;
+    source?: TurnPrepFeatureDragPayload | null;
+  };
+
+  function cloneFeature(feature?: SelectedFeature | null): SelectedFeature | null {
+    return cloneSelectedFeature(feature);
+  }
+
+  function getActivationsFromFeature(feature?: SelectedFeature | null): string[] {
+    if (!feature?.actionType) return [];
+    return [normalizeActionType(feature.actionType)];
+  }
+
+  function getActivationsFromItem(item: any): string[] {
+    if (!item) return [];
+    const activations: string[] = [];
+    const itemActivation = normalizeActionType(item?.system?.activation?.type);
+    if (itemActivation) activations.push(itemActivation);
+    const activities = FeatureSelector.getActivitiesForItem(item) ?? [];
+    for (const act of activities) {
+      const type = normalizeActionType(act?.activation?.type ?? act?.system?.activation?.type);
+      if (type) activations.push(type);
+    }
+    return activations;
+  }
+
+  function getActivationsForFeature(feature?: SelectedFeature | null): string[] {
+    if (feature?.itemId) {
+      const item = actor?.items?.get?.(feature.itemId);
+      const fromItem = getActivationsFromItem(item);
+      if (fromItem.length) return fromItem;
+    }
+    return getActivationsFromFeature(feature);
+  }
+
+  async function buildFeatureFromUuid(uuid: string): Promise<{ feature: SelectedFeature | null; activations: string[] }> {
+    try {
+      const doc = (await (globalThis as any).fromUuid?.(uuid)) as any;
+      if (!doc) {
+        ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.ItemUnavailable'));
+        return { feature: null, activations: [] };
+      }
+      if (doc?.actor?.id && actor?.id && doc.actor.id !== actor.id) {
+        ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.ActorMismatch'));
+        return { feature: null, activations: [] };
+      }
+      const actionType = normalizeActionType(doc?.system?.activation?.type);
+      const feature: SelectedFeature = {
+        itemId: doc.id,
+        itemName: doc.name ?? doc.id,
+        itemType: doc.type ?? 'item',
+        actionType
+      };
+      const activations = getActivationsFromItem(doc);
+      return { feature, activations: activations.length ? activations : getActivationsFromFeature(feature) };
+    } catch (error) {
+      console.error('[ReactionPlansPanel] Failed to resolve UUID drop', uuid, error);
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.ItemUnavailable'));
+      return { feature: null, activations: [] };
+    }
+  }
+
+  function coerceReactionTable(table: AnyFeatureTableKey): ReactionPlanTableKey {
+    if (table === 'reactionFeatures' || table === 'reactions') return 'reactionFeatures';
+    return 'additionalFeatures';
+  }
+
+  function pickReactionTableForDrop(requested: AnyFeatureTableKey, activations: string[]): ReactionPlanTableKey {
+    const desired = coerceReactionTable(requested);
+    if (desired === 'additionalFeatures') return desired;
+    if (activations.some((act) => act && resolveReactionPlanTableForActivations([act]) === 'reactionFeatures')) {
+      return 'reactionFeatures';
+    }
+    return 'additionalFeatures';
+  }
+
+  function getReactionTable(reaction: Reaction, table: ReactionPlanTableKey): SelectedFeature[] {
+    if (table === 'reactionFeatures') return reaction.reactionFeatures ?? [];
+    return reaction.additionalFeatures ?? [];
+  }
+
+  function setReactionTable(reaction: Reaction, table: ReactionPlanTableKey, value: SelectedFeature[]): Reaction {
+    return table === 'reactionFeatures'
+      ? { ...reaction, reactionFeatures: value }
+      : { ...reaction, additionalFeatures: value };
+  }
+
+  function coerceTurnTable(table: AnyFeatureTableKey): TurnPlanTableKey {
+    if (table === 'actions' || table === 'bonusActions' || table === 'reactions') return table;
+    return 'additionalFeatures';
+  }
+
+  function getTurnPlanTable(plan: TurnPlan, table: TurnPlanTableKey): SelectedFeature[] {
+    switch (table) {
+      case 'actions':
+        return plan.actions ?? [];
+      case 'bonusActions':
+        return plan.bonusActions ?? [];
+      case 'reactions':
+        return plan.reactions ?? [];
+      case 'additionalFeatures':
+      default:
+        return plan.additionalFeatures ?? [];
+    }
+  }
+
+  function setTurnPlanTable(plan: TurnPlan, table: TurnPlanTableKey, value: SelectedFeature[]): TurnPlan {
+    switch (table) {
+      case 'actions':
+        return { ...plan, actions: value };
+      case 'bonusActions':
+        return { ...plan, bonusActions: value };
+      case 'reactions':
+        return { ...plan, reactions: value };
+      case 'additionalFeatures':
+      default:
+        return { ...plan, additionalFeatures: value };
+    }
+  }
+
+  function findTurnPlanTable(plan: TurnPlan, featureId: string): TurnPlanTableKey | null {
+    if ((plan.actions ?? []).some((f) => f.itemId === featureId)) return 'actions';
+    if ((plan.bonusActions ?? []).some((f) => f.itemId === featureId)) return 'bonusActions';
+    if ((plan.reactions ?? []).some((f) => f.itemId === featureId)) return 'reactions';
+    if ((plan.additionalFeatures ?? []).some((f) => f.itemId === featureId)) return 'additionalFeatures';
+    return null;
+  }
+
+  function findReaction(reactionId?: string | null): { index: number; reaction: Reaction | null } {
+    const index = reactionId ? reactions.findIndex((r) => r.id === reactionId) : -1;
+    return { index, reaction: index >= 0 ? reactions[index] : null };
+  }
+
   function isNotesCollapsed(reactionId: string): boolean {
     return notesCollapsed[reactionId] ?? true;
   }
@@ -328,6 +482,290 @@
     }
   }
 
+  async function saveTurnPrepState(nextReactions: Reaction[], nextTurnPlans?: TurnPlan[]) {
+    if (!actor) return;
+    try {
+      const turnPrepData = api.getTurnPrepData(actor) ?? createEmptyTurnPrepData();
+      turnPrepData.reactions = nextReactions.map((reaction) => sanitizeReaction(reaction));
+      if (nextTurnPlans) {
+        turnPrepData.turnPlans = nextTurnPlans;
+      }
+      reactions = hydrateReactions(turnPrepData.reactions ?? []);
+      await api.saveTurnPrepData(actor, turnPrepData, { render: false });
+    } catch (error) {
+      console.error('[ReactionPlansPanel] Failed to save reactions:', error);
+      ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.Reactions.SaveError'));
+    }
+  }
+
+  function handleFeatureReorder(
+    reactionId: string,
+    table: ReactionPlanTableKey,
+    fromIndex: number,
+    toIndex: number
+  ) {
+    const { reaction, index } = findReaction(reactionId);
+    if (!reaction || index === -1) return;
+    const current = getReactionTable(reaction, table);
+    if (!current.length) return;
+    const next = moveArrayItem(current, fromIndex, toIndex);
+    const nextReactions = [...reactions];
+    nextReactions[index] = setReactionTable(reaction, table, next);
+    reactions = nextReactions;
+    scheduleAutoSave();
+  }
+
+  function removeFeatureFromReactionSource(
+    reactionsList: Reaction[],
+    sourceReactionId: string,
+    featureId: string,
+    tableGuess: AnyFeatureTableKey | null
+  ): Reaction[] {
+    const sourceIndex = reactionsList.findIndex((r) => r.id === sourceReactionId);
+    if (sourceIndex === -1) return reactionsList;
+    const sourceReaction = reactionsList[sourceIndex];
+    const sourceTable = coerceReactionTable(tableGuess ?? 'additionalFeatures');
+    const filtered = getReactionTable(sourceReaction, sourceTable).filter((f) => f.itemId !== featureId);
+    const next = [...reactionsList];
+    next[sourceIndex] = setReactionTable(sourceReaction, sourceTable, filtered);
+    return next;
+  }
+
+  function removeFeatureFromTurnPlanSource(
+    turnPlans: TurnPlan[],
+    sourcePlanId: string,
+    featureId: string,
+    tableGuess: AnyFeatureTableKey | null
+  ): TurnPlan[] {
+    const sourceIndex = turnPlans.findIndex((p) => p.id === sourcePlanId);
+    if (sourceIndex === -1) return turnPlans;
+    const sourcePlan = turnPlans[sourceIndex];
+    const sourceTable = coerceTurnTable(
+      tableGuess ?? findTurnPlanTable(sourcePlan, featureId) ?? 'additionalFeatures'
+    );
+    const filtered = getTurnPlanTable(sourcePlan, sourceTable).filter((f) => f.itemId !== featureId);
+    const next = [...turnPlans];
+    next[sourceIndex] = setTurnPlanTable(sourcePlan, sourceTable, filtered);
+    return next;
+  }
+
+  async function handleFeatureDrop(event: FeatureDropEvent) {
+    if (event.panelKind !== 'reaction') return;
+    const targetReactionId = event.ownerId;
+    if (!targetReactionId) return;
+
+    let feature: SelectedFeature | null = event.feature ?? null;
+    let activations: string[] = feature ? getActivationsForFeature(feature) : [];
+
+    if (!feature && event.nativeItemUuid) {
+      const resolved = await buildFeatureFromUuid(event.nativeItemUuid);
+      feature = resolved.feature;
+      activations = resolved.activations;
+    }
+
+    if (!feature) return;
+    if (!activations.length) {
+      activations = getActivationsForFeature(feature);
+    }
+
+    const targetTable = pickReactionTableForDrop(event.table, activations);
+
+    const turnPrepData = api.getTurnPrepData(actor) ?? createEmptyTurnPrepData();
+    let nextReactions = Array.isArray(turnPrepData.reactions) ? [...turnPrepData.reactions] : [];
+    let nextTurnPlans = Array.isArray(turnPrepData.turnPlans) ? [...turnPrepData.turnPlans] : [];
+
+    const reactionIndex = nextReactions.findIndex((r) => r.id === targetReactionId);
+    if (reactionIndex === -1) {
+      ui.notifications?.warn(
+        FoundryAdapter.localize('TURN_PREP.Reactions.Messages.ReactionMissing') || 'Reaction not found.'
+      );
+      return;
+    }
+
+    if (!event.copy && event.source?.feature?.itemId) {
+      if (event.source.sourceReactionId) {
+        nextReactions = removeFeatureFromReactionSource(
+          nextReactions,
+          event.source.sourceReactionId,
+          event.source.feature.itemId,
+          event.source.sourceTable ?? null
+        );
+      } else if (event.source.sourcePlanId) {
+        nextTurnPlans = removeFeatureFromTurnPlanSource(
+          nextTurnPlans,
+          event.source.sourcePlanId,
+          event.source.feature.itemId,
+          event.source.sourceTable ?? null
+        );
+      }
+    }
+
+    const targetReaction = nextReactions[reactionIndex];
+    const targetList = getReactionTable(targetReaction, targetTable);
+    if (hasDuplicateFeature(targetList, feature)) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.DuplicateFeature'));
+      return;
+    }
+
+    const insertAt = Math.max(0, Math.min(targetList.length, event.targetIndex ?? targetList.length));
+    const updatedList = [...targetList];
+    updatedList.splice(insertAt, 0, cloneFeature(feature) as SelectedFeature);
+    nextReactions[reactionIndex] = setReactionTable(targetReaction, targetTable, updatedList);
+
+    await saveTurnPrepState(nextReactions, nextTurnPlans);
+  }
+
+  async function handleMoveCopyWithinReactions(
+    fromReactionId: string,
+    toReactionId: string,
+    table: ReactionPlanTableKey,
+    feature: SelectedFeature,
+    copy: boolean
+  ) {
+    const turnPrepData = api.getTurnPrepData(actor) ?? createEmptyTurnPrepData();
+    let nextReactions = Array.isArray(turnPrepData.reactions) ? [...turnPrepData.reactions] : [];
+
+    const targetIndex = nextReactions.findIndex((r) => r.id === toReactionId);
+    if (targetIndex === -1) {
+      ui.notifications?.warn(
+        FoundryAdapter.localize('TURN_PREP.Reactions.Messages.ReactionMissing') || 'Reaction not found.'
+      );
+      return;
+    }
+
+    const targetReaction = nextReactions[targetIndex];
+    const targetList = getReactionTable(targetReaction, table);
+    if (hasDuplicateFeature(targetList, feature)) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.DuplicateFeature'));
+      return;
+    }
+
+    if (!copy && fromReactionId) {
+      nextReactions = removeFeatureFromReactionSource(nextReactions, fromReactionId, feature.itemId, table);
+    }
+
+    const updated = [...getReactionTable(nextReactions[targetIndex], table), cloneFeature(feature) as SelectedFeature];
+    nextReactions[targetIndex] = setReactionTable(nextReactions[targetIndex], table, updated);
+
+    await saveTurnPrepState(nextReactions);
+  }
+
+  async function handleMoveCopyToTurnPlan(
+    fromReactionId: string,
+    planId: string,
+    table: TurnPlanTableKey,
+    feature: SelectedFeature,
+    copy: boolean
+  ) {
+    const turnPrepData = api.getTurnPrepData(actor) ?? createEmptyTurnPrepData();
+    let nextReactions = Array.isArray(turnPrepData.reactions) ? [...turnPrepData.reactions] : [];
+    const nextTurnPlans = Array.isArray(turnPrepData.turnPlans) ? [...turnPrepData.turnPlans] : [];
+
+    const planIndex = nextTurnPlans.findIndex((p) => p.id === planId);
+    if (planIndex === -1) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.PlanMissing') || 'Plan not found.');
+      return;
+    }
+
+    const targetPlan = nextTurnPlans[planIndex];
+    const targetList = getTurnPlanTable(targetPlan, table);
+    if (hasDuplicateFeature(targetList, feature)) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.DuplicateFeature'));
+      return;
+    }
+
+    if (!copy && fromReactionId) {
+      nextReactions = removeFeatureFromReactionSource(nextReactions, fromReactionId, feature.itemId, 'reactionFeatures');
+    }
+
+    const updatedPlanList = [...targetList, cloneFeature(feature) as SelectedFeature];
+    nextTurnPlans[planIndex] = setTurnPlanTable(targetPlan, table, updatedPlanList);
+
+    await saveTurnPrepState(nextReactions, nextTurnPlans);
+  }
+
+  function buildReactionMoveCopyMenu(
+    currentReactionId: string,
+    feature: SelectedFeature,
+    copy: boolean
+  ): ContextMenuSection[] {
+    const sections: ContextMenuSection[] = [];
+    const activations = getActivationsForFeature(feature);
+    const activationSet = new Set(activations.map((a) => normalizeActionType(a)));
+    const allowReaction = activationSet.has('reaction');
+    const allowAction = activationSet.has('action');
+    const allowBonus = activationSet.has('bonus');
+
+    const reactionActions: ContextMenuAction[] = [];
+    for (const reaction of reactions) {
+      if (reaction.id === currentReactionId) continue;
+      if (allowReaction) {
+        reactionActions.push({
+          id: `${reaction.id}-reaction-${copy ? 'copy' : 'move'}`,
+          label: `${reaction.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} - ${FoundryAdapter.localize('TURN_PREP.Reactions.ReactionFeatures')}`,
+          icon: 'fa-solid fa-bolt',
+          onSelect: () => handleMoveCopyWithinReactions(currentReactionId, reaction.id, 'reactionFeatures', feature, copy)
+        });
+      }
+      reactionActions.push({
+        id: `${reaction.id}-additional-${copy ? 'copy' : 'move'}`,
+        label: `${reaction.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} - ${FoundryAdapter.localize('TURN_PREP.Reactions.AdditionalFeatures')}`,
+        icon: 'fa-regular fa-circle-dot',
+        onSelect: () => handleMoveCopyWithinReactions(currentReactionId, reaction.id, 'additionalFeatures', feature, copy)
+      });
+    }
+
+    if (reactionActions.length) {
+      sections.push({
+        id: `reaction-destinations-${copy ? 'copy' : 'move'}`,
+        label: FoundryAdapter.localize('TURN_PREP.Reactions.Title') || 'Reactions',
+        actions: reactionActions
+      });
+    }
+
+    try {
+      const turnPrepData = api.getTurnPrepData(actor);
+      const plans = turnPrepData?.turnPlans ?? [];
+      const turnActions: ContextMenuAction[] = [];
+      for (const plan of plans) {
+        if (allowAction) {
+          turnActions.push({
+            id: `${plan.id}-action-${copy ? 'copy' : 'move'}`,
+            label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.Actions')}`,
+            icon: 'fa-solid fa-person-running',
+            onSelect: () => handleMoveCopyToTurnPlan(currentReactionId, plan.id, 'actions', feature, copy)
+          });
+        }
+        if (allowBonus) {
+          turnActions.push({
+            id: `${plan.id}-bonus-${copy ? 'copy' : 'move'}`,
+            label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.BonusActions')}`,
+            icon: 'fa-solid fa-plus',
+            onSelect: () => handleMoveCopyToTurnPlan(currentReactionId, plan.id, 'bonusActions', feature, copy)
+          });
+        }
+        turnActions.push({
+          id: `${plan.id}-additional-${copy ? 'copy' : 'move'}`,
+          label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.AdditionalFeatures')}`,
+          icon: 'fa-regular fa-circle-dot',
+          onSelect: () => handleMoveCopyToTurnPlan(currentReactionId, plan.id, 'additionalFeatures', feature, copy)
+        });
+      }
+
+      if (turnActions.length) {
+        sections.push({
+          id: `turn-destinations-${copy ? 'copy' : 'move'}`,
+          label: FoundryAdapter.localize('TURN_PREP.TurnPlans.Title') || 'Turns',
+          actions: turnActions
+        });
+      }
+    } catch (error) {
+      console.warn('[ReactionPlansPanel] Failed to build turn destination menu', error);
+    }
+
+    return sections;
+  }
+
   function getReactionContextMenuActions(reaction: Reaction): ContextMenuAction[] {
     return [
       {
@@ -471,17 +909,31 @@
 
                 <TurnPlanFeatureTable
                   tableKey={`reaction-${reaction.id}`}
+                  ownerId={reaction.id}
+                  panelKind="reaction"
+                  tableType="reactionFeatures"
                   title={FoundryAdapter.localize('TURN_PREP.Reactions.ReactionFeatures')}
                   actor={actor}
                   features={getReactionFeatures(reaction)}
+                  onFeatureDrop={handleFeatureDrop}
+                  onReorderFeature={(from, to) => handleFeatureReorder(reaction.id, 'reactionFeatures', from, to)}
+                  buildMoveToMenu={(feature) => buildReactionMoveCopyMenu(reaction.id, feature, false)}
+                  buildCopyToMenu={(feature) => buildReactionMoveCopyMenu(reaction.id, feature, true)}
                   onRemoveFeature={(featureId) => handleRemoveFeature(reaction.id, 'reaction', featureId)}
                 />
 
                 <TurnPlanFeatureTable
                   tableKey={`reaction-additional-${reaction.id}`}
+                  ownerId={reaction.id}
+                  panelKind="reaction"
+                  tableType="additionalFeatures"
                   title={FoundryAdapter.localize('TURN_PREP.Reactions.AdditionalFeatures')}
                   actor={actor}
                   features={getAdditionalFeatures(reaction)}
+                  onFeatureDrop={handleFeatureDrop}
+                  onReorderFeature={(from, to) => handleFeatureReorder(reaction.id, 'additionalFeatures', from, to)}
+                  buildMoveToMenu={(feature) => buildReactionMoveCopyMenu(reaction.id, feature, false)}
+                  buildCopyToMenu={(feature) => buildReactionMoveCopyMenu(reaction.id, feature, true)}
                   onRemoveFeature={(featureId) => handleRemoveFeature(reaction.id, 'additional', featureId)}
                 />
 

@@ -14,7 +14,14 @@
       "View": "View",
       "Edit": "Edit",
       "DisplayInChat": "Display in Chat",
-      "RemoveFromTurnPrep": "Remove from Turn Prep"
+      "RemoveFromTurnPrep": "Remove from Turn Prep",
+      "MoveTo": "Move To",
+      "CopyTo": "Copy To",
+      "Arrange": "Arrange",
+      "MoveUp": "Move Up",
+      "MoveDown": "Move Down",
+      "MoveTop": "Move to Top",
+      "MoveBottom": "Move to Bottom"
     },
     "Tabs": {
       "TurnPrep": "Turn Prep",
@@ -98,7 +105,10 @@
         "ActorUnavailable": "Actor is no longer available for rolling.",
         "ItemUnavailable": "That feature can no longer be found on this actor.",
         "ActivityUnavailable": "That activity is no longer available.",
-        "RollFailed": "Unable to roll {feature}. Check the console for details."
+        "RollFailed": "Unable to roll {feature}. Check the console for details.",
+        "DuplicateFeature": "That feature is already in this list.",
+        "ActorMismatch": "You can only move features within the same actor.",
+        "PlanMissing": "Plan not found."
       }
     },
     "Reactions": {
@@ -141,6 +151,10 @@
       "MissingFeature": "(Missing)",
       "RollsMade": "Rolls Made",
       "DeleteConfirm": "Delete this from history?"
+      ,
+      "Messages": {
+        "ReactionMissing": "Reaction not found."
+      }
     },
     "ActivitySelector": {
       "Title": "Select Activity",
