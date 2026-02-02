@@ -1,3 +1,4 @@
+
 # Phase 4 Implementation Plan - UI Components
 
 **Status**: In Progress - Session 0 & 1  
@@ -19,180 +20,139 @@
 2. **Use HtmlTab** (not SvelteTab) to create a container div
 3. **Manually mount** our bundled Svelte components using Svelte's `mount()` function in `onRender`
 
-```typescript
-import { mount } from 'svelte';
-import MyComponent from './MyComponent.svelte';
+### 4. History & Favorites Panel (Sidebar)
 
-api.registerCharacterTab(
-  new api.models.HtmlTab({
-    title: 'Turn Prep',
-    tabId: TAB_ID_MAIN,
-    html: '<div id="turn-prep-root"></div>',
-    enabled: (data: any) => true,
-    onRender: (params: any) => {
-      const component = mount(MyComponent, {
-        target: params.element.querySelector('#turn-prep-root'),
-        props: { actor: params.data.actor }
-      });
-    }
-  })
-);
+**Purpose**: Show Favorite Turn Plans, Favorite Reaction Plans, and recent turn plans in the sidebar for quick reuse. No chat roll capture or initiative tie-ins—recent plans are a short-term history meant to re-run useful tactics.
+
+**Visual Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Turns (Sidebar Tab)                                         │
+├─────────────────────────────────────────────────────────────┤
+│ Favorites (Turn Plans)          [fa-hourglass]              │
+│  • <b><u>Plan Name</u></b>                   [⋮]
+│    Action: Booming Blade, Longsword (inline, wrap)
+│    Bonus Actions: Second Wind
+│    Additional Features: Fighting Style: Protector
+├─────────────────────────────────────────────────────────────┤
+│ Favorites (Reaction Plans)      [fa-retweet]                │
+│  • <b><u>Trigger text as title</u></b>       [⋮]
+│    Action: —
+│    Bonus Actions: —
+│    Additional Features: Shield
+├─────────────────────────────────────────────────────────────┤
+│ Recent Turn Plans (Last N)      [fa-history]                │
+│  • <b><u>Plan Name</u></b>                   [⋮]
+│    Action: Firebolt
+│    Bonus Actions: —
+│    Additional Features: —
+├─────────────────────────────────────────────────────────────┤
+│ (Newest to oldest, no timestamps; blank space if none)      |
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Why This Works**:
-- Our Svelte components are compiled with our own runtime (no dual-runtime conflict)
-- CSS is scoped with custom hash to avoid collisions with Tidy5e's styles
-- We control the mounting process, so Tidy5e doesn't try to mount with its runtime
-- Full Svelte 5 reactivity and features available
-
-**Required Configuration** (`vite.config.ts`):
-```typescript
-svelte({
-  compilerOptions: {
-    cssHash: ({ hash, css }) => `svelte-tp-${hash(css)}`  // Prevents style collisions
-  }
-})
+**Component Structure**:
+```
+HistoryFavoritesPanel.svelte
+├── FavoritesTurnSection.svelte (collapsible header with hover arrow)
+│   └── PlanCard.svelte (compact, no expansion)
+├── FavoritesReactionSection.svelte (collapsible header with hover arrow)
+│   └── PlanCard.svelte (trigger acts as title)
+└── RecentSection.svelte (collapsible header with hover arrow)
+  └── PlanCard.svelte
 ```
 
----
-
-### ❌ WHAT DOESN'T WORK (Don't Try These Again!)
-
-#### 1. Using SvelteTab with Compiled Components
-**Problem**: Dual Svelte runtime conflict
+**Data Model**:
 ```typescript
-// ❌ NEVER DO THIS - Will fail with "first_child_getter undefined"
-api.registerCharacterTab(
-  new api.models.SvelteTab({
-    component: MyCompiledSvelteComponent  // Two runtimes conflict!
-  })
-);
-```
+interface TurnSnapshot {
+  id: string;                    // UUID
+  planId?: string;               // Reference to original plan (if applicable)
+  name: string;                  // Plan name at time of snapshot
+  createdTime: number;           // When snapshot was created
+  trigger?: string;              // Trigger text (truncated in summary)
+  features: SnapshotFeature[];   // Features used
+  movement?: string;             // Movement text
+  mechanicalNotes?: string;      // Notes
+  roleplayNotes?: string;        // Notes
+  isFavorite: boolean;           // Star toggle
+}
 
-**Why It Fails**:
-- Tidy5e bundles its own Svelte 5 runtime
-- Our module bundles a separate Svelte 5 runtime
-- SvelteTab uses Tidy5e's runtime to mount components
-- Our components expect OUR runtime's functions
-- Result: `TypeError: Cannot read properties of undefined (reading 'call')`
-
-#### 2. Externalizing Svelte in Build Config
-**Problem**: Svelte compiler doesn't generate import statements
-```typescript
-// ❌ THIS DOESN'T WORK - Svelte compiler ignores it
-rollupOptions: {
-  external: ['svelte', 'svelte/internal']  // Has no effect!
+interface SnapshotFeature {
+  itemId: string;                // ID at time of snapshot
+  itemName: string;              // Name at time of snapshot (for display if item deleted)
+  itemType: string;              // Type at time of snapshot
+  activationType: 'action' | 'bonus' | 'additional' | 'reaction';
 }
 ```
 
-**Why It Fails**:
-- Vite's externalize only works for `import` statements
-- Svelte compiler generates inline runtime code, not imports
-- No way to make compiled components use external runtime
+**Features**:
+- Favorites show first; recent turn plans list below (limit N from setting), newest-first.
+- Sections are collapsible with hover-only arrow; start expanded and remember collapse state within session if feasible; cards do not expand.
+- Card layout: title bold+underlined; italic row labels (Action, Bonus Actions, Additional Features) with inline enriched item links that wrap.
+- Reaction favorites mirror turn plan layout; reaction trigger text is the title.
+- No timestamps displayed; empty state is just blank space under headers.
+- Primary button: Load to Current Turn (fa-share icon).
+- Context menu button: Three dots (fa-ellipsis-vertical) using Tidy5e component.
+- Context menu (right-click or ellipsis): Load; Delete; Duplicate (favorites only); Edit (stub); Favorite toggle (Recent only). Use existing icons from other menus.
+- Recent entries are created explicitly when user saves a plan (Save or Save & Clear); older entries trimmed to limit.
+- Snapshots store display names so missing items never block display.
+- Loading adds the plan as a new entry at the bottom of current turn plans (does not switch tabs).
+- Duplicate creates another favorite entry (same list); delete always confirmed.
+- Favoriting a recent plan keeps it visible in Recent and also shows it in Favorites.
+- Styling: compact padding, card borders only; BG accent for favorite turns, lighter default for reactions, darker default for recent.
 
-#### 3. Importing Tidy5e's Svelte Components Directly
-**Problem**: Components not exported by Tidy5e
-```typescript
-// ❌ THIS DOESN'T WORK - Not in public API
-import { TidyTable, TidyTableRow } from '@tidy5e-sheet/api';  // Doesn't exist!
+**Tidy5e Components to Use**:
+- `ExpandableContainer` for collapsible cards
+- `HorizontalLineSeparator` between sections
+- Custom card components (not using TidyTable here)
+
+**Localization Keys**:
+```json
+{
+  "TURN_PREP.History.Title": "Turns",
+  "TURN_PREP.History.FavoritesTitle": "Favorites",
+  "TURN_PREP.History.HistoryTitle": "Recent Turn Plans (Last {limit})",
+  "TURN_PREP.History.NoFavorites": "No favorites saved yet",
+  "TURN_PREP.History.NoHistory": "No recent turn plans yet",
+  "TURN_PREP.History.Action": "Action",
+  "TURN_PREP.History.BonusAction": "Bonus",
+  "TURN_PREP.History.None": "None",
+  "TURN_PREP.History.FavoriteTooltip": "Toggle Favorite",
+  "TURN_PREP.History.RestoreTooltip": "Load to Current Turn",
+  "TURN_PREP.History.DeleteTooltip": "Delete",
+  "TURN_PREP.History.DeleteConfirm": "Delete this entry?",
+  "TURN_PREP.History.ContextMenu": "More Options",
+  "TURN_PREP.History.ContextMenu.Delete": "Delete",
+  "TURN_PREP.History.ContextMenu.Duplicate": "Duplicate",
+  "TURN_PREP.History.ContextMenu.Edit": "Edit",
+  "TURN_PREP.History.ContextMenu.LoadToCurrent": "Load as Current Turn Plan",
+  "TURN_PREP.History.ContextMenu.AddFavorite": "Add as Favorite",
+  "TURN_PREP.History.ContextMenu.RemoveFavorite": "Remove Favorite"
+}
 ```
 
-**Why It Fails**:
-- Tidy5e only exports API functions, not Svelte components
-- Components are internal implementation details
-- Must build our own components with Tidy5e CSS classes
+**API Methods Needed**:
+```typescript
+// In TurnPrepApi.ts
+static async getFavorites(actor: Actor): Promise<TurnSnapshot[]>
+static async getRecentTurnPlans(actor: Actor): Promise<TurnSnapshot[]>  // Uses setting for limit
+static async toggleSnapshotFavorite(actor: Actor, snapshotId: string): Promise<void>
+static async loadSnapshotToCurrent(actor: Actor, snapshotId: string): Promise<TurnPlan>
+static async deleteSnapshot(actor: Actor, snapshotId: string): Promise<void>
+static async duplicateSnapshot(actor: Actor, snapshotId: string): Promise<TurnSnapshot>
+static async editSnapshot(actor: Actor, snapshotId: string, updates: Partial<TurnSnapshot>): Promise<void>
+```
 
----
-
-### 📚 Implementation Approach (Current)
-
-**Phase 4 is using the "Item Piles" pattern:**
-1. ✅ Svelte 5 components with full reactivity
-2. ✅ Own bundled runtime with scoped CSS (`cssHash`)
-3. ✅ HtmlTab registration with container div
-4. ✅ Manual mounting in `onRender` callback
-5. ✅ Tidy5e CSS variables for theming (`var(--t5e-primary-color)`)
-6. ✅ Custom components that match Tidy5e's visual style
-
-**See Full Details**: 
-- `TIDY5E_INTEGRATION_SOLUTION.md` - Complete implementation guide
-- `RESEARCH_FINDINGS.md` → "Tidy5e Svelte Integration" section
-
----
-
-## Overview
-
-Phase 4 builds the UI components integrated into Tidy5e character sheets. Due to Svelte runtime conflicts, we're using HtmlTab with vanilla JavaScript instead of Svelte components.
-
-### Technical Stack (Updated - Item Piles Pattern)
-
-- **Framework**: **Svelte 5** with bundled runtime + manual mounting
-- **Integration**: Tidy5e HtmlTab API with Svelte `mount()` in onRender
-- **Styling**: LESS with scoped CSS hash (`cssHash: 'svelte-tp-'`)
-- **Data Flow**: Actor flags + Svelte reactivity ($state runes)
-- **Dialogs**: DialogV2 (migrate deprecated Dialog)
-- **Localization**: FoundryAdapter.localize() from start
-- **API Communication**: Direct calls to TurnPrepAPI
-- **Theming**: Tidy5e CSS variables (e.g., `var(--t5e-primary-color)`)
-
-### Implementation Priority
-
-1. **Tidy5e Sheet Integration** ✅ (COMPLETE - Session 0, 1, & 2)
-   - Using Item Piles pattern: HtmlTab + bundled Svelte + manual mount()
-   - Main "Turn Prep" tab registered and rendering
-   - Sidebar "Turns" tab registered and rendering
-   - vite.config.ts configured with cssHash for scoped styles
-   
-2. **DM Questions Panel** 🚧 (IN PROGRESS - Session 0, 1, & 2)
-   - ~~Basic HTML structure created~~ → Migrating to Svelte component
-   - 5 question fields with labels
-   - Individual clear buttons
-   - Clear All and Save buttons
-   - ~~Event handlers implemented in DmQuestionsHandler.ts~~ → Moving to Svelte reactivity
-   - Auto-save with 500ms debounce
-   - Data persistence via actor flags
-   - **TODO**: Convert to proper Svelte component with $state runes
-   - **TODO**: Add whisper/public chat functionality
-   
-3. **Turn Plans Panel** (next - most complex main interface)
-4. **Reactions Panel** (medium - similar to turn plans but simpler)
-5. **History & Favorites** (medium - display and restore functionality)
-6. **Dialog Migrations** (activity selector and end of turn dialogs)
-
----
-
-## Current Implementation Status
-
-### ✅ Completed (Session 0 & 1)
-
-**Files Created**:
-- `src/sheets/tidy5e/TidyHtmlTabs.ts` - HTML generation for tabs
-- `src/sheets/tidy5e/DmQuestionsHandler.ts` - Event handlers and data persistence
-- `src/sheets/tidy5e/tidy-sheet-integration.ts` - Tab registration with onRender callbacks
-
-**Tab Integration**:
-- Main tab: "Turn Prep" with DM Questions panel
-- Sidebar tab: "Turns" (placeholder for history/favorites)
-- Using HtmlTab API to avoid Svelte runtime conflicts
-- onRender callback initializes event handlers
-
-**DM Questions Panel**:
-- 5 predefined questions: Main Action, Bonus Action, Movement, Reaction, Other
-- Auto-save on input (500ms debounce)
-- Save on blur (leaving field)
-- Individual clear buttons per question
-- Clear All button with confirmation dialog
-- Manual Save button
-- Data stored in actor flags: `turn-prep.turnPrepData.dmQuestions`
-
-### 🚧 In Progress
-
-**DM Questions Panel Enhancements**:
-- Add whisper to DM functionality
-- Add public chat message functionality
-- Improve visual styling with Tidy5e theme integration
-
----
+**Implementation Steps**:
+1. Create `HistoryFavoritesPanel.svelte` component.
+2. Create `FavoritesSection.svelte` and `RecentSection.svelte`.
+3. Create `FavoriteCard.svelte` and `RecentCard.svelte`.
+4. Add localization strings.
+5. Implement state management and data loading hooks.
+6. Handle missing items gracefully via stored display names.
+7. Connect to API methods; prune recent list to configured limit.
+8. Style with LESS and Tidy5e components for cohesion.
+9. Test load, favorite toggle, delete, duplicate, and recent list trimming.
 
 ## Component Specifications
 
@@ -1219,24 +1179,22 @@ public/
   
   "TURN_PREP.History.Title": "Turns",
   "TURN_PREP.History.FavoritesTitle": "Favorites",
-  "TURN_PREP.History.HistoryTitle": "History (Last {limit} Turns)",
+  "TURN_PREP.History.HistoryTitle": "Recent Turn Plans (Last {limit})",
   "TURN_PREP.History.NoFavorites": "No favorites saved yet",
-  "TURN_PREP.History.NoHistory": "No turn history yet",
+  "TURN_PREP.History.NoHistory": "No recent turn plans yet",
   "TURN_PREP.History.Action": "Action",
   "TURN_PREP.History.BonusAction": "Bonus",
   "TURN_PREP.History.None": "None",
-  "TURN_PREP.History.TurnNumber": "Turn {number}",
   "TURN_PREP.History.LoadTooltip": "Load to Current Turn",
   "TURN_PREP.History.ContextMenu": "More Options",
   "TURN_PREP.History.ContextMenu.Delete": "Delete",
   "TURN_PREP.History.ContextMenu.Duplicate": "Duplicate",
   "TURN_PREP.History.ContextMenu.Edit": "Edit",
   "TURN_PREP.History.ContextMenu.LoadToCurrent": "Load as Current Turn Plan",
-  "TURN_PREP.History.ContextMenu.RefreshRolls": "Refresh Rolls",
   "TURN_PREP.History.ContextMenu.AddFavorite": "Add as Favorite",
+  "TURN_PREP.History.ContextMenu.RemoveFavorite": "Remove Favorite",
   "TURN_PREP.History.MissingFeature": "(Missing)",
-  "TURN_PREP.History.RollsMade": "Rolls Made",
-  "TURN_PREP.History.DeleteConfirm": "Delete this from history?",
+  "TURN_PREP.History.DeleteConfirm": "Delete this entry?",
   
   "TURN_PREP.ActivitySelector.Title": "Select Activity",
   "TURN_PREP.ActivitySelector.Select": "Select",
@@ -1302,16 +1260,16 @@ public/
 - [ ] Reactions persist after closing sheet
 
 **History & Favorites**:
-- [ ] View favorites list
-- [ ] View history list (last 10)
-- [ ] Expand/collapse history card
-- [ ] View full plan details
-- [ ] View rolls made (if any)
-- [ ] Restore snapshot to current plan
-- [ ] Toggle favorite from history
-- [ ] Delete from history
-- [ ] Delete from favorites
-- [ ] Handle missing items gracefully
+- [ ] View favorites (turn) list
+- [ ] View favorites (reaction) list
+- [ ] View recent turn plans list (limit, newest-first)
+- [ ] Collapse/expand sections (hover arrow, start expanded; remember state per session if feasible)
+- [ ] Card rows show title + inline Action/Bonus/Additional with enrich links
+- [ ] Load adds plan at bottom of current plans (no tab switch)
+- [ ] Favorite toggle from recent moves to favorites
+- [ ] Duplicate stays in favorites
+- [ ] Delete confirmations fire (favorites and recent)
+- [ ] Handle missing items gracefully (stored names still display)
 
 **Integration**:
 - [ ] Turn Prep tab appears in main tab bar
@@ -1547,16 +1505,15 @@ This section documents user feedback notes and the corresponding changes made to
 - Replaced star/copy/delete buttons with simpler button layout:
   - Primary button: Load to Current Turn (fa-share icon)
   - Context menu button: Three dots (fa-ellipsis-vertical)
-- Added full context menu specification with 6 items:
+- Added context menu specification (no roll refresh in new scope):
   - Delete
   - Duplicate (Favorites only)
   - Edit
   - Load as Current Turn Plan (fa-share)
-  - Refresh Rolls (History only, fa-repeat)
-  - Add as Favorite (History only, fa-star)
+  - Add/Remove Favorite toggle
 - Noted using Tidy5e's ellipsis button component
 - Updated localization keys to match new button structure
-- Updated API Methods to include context menu actions (duplicate, edit, refresh)
+- Updated API Methods to include context menu actions (duplicate, edit, favorite toggle)
 
 ### Note 11: Data Model - Enhanced RollRecord
 **Location**: History & Favorites Panel - Data Model section  
@@ -1614,6 +1571,17 @@ This section documents user feedback notes and the corresponding changes made to
   - `TURN_PREP.History.ContextMenu` and 6 submenu keys
 - Reviewed all sections and confirmed all new features have localization keys
 - Updated consolidated localization JSON in Localization Setup section
+
+### Note 16: History Scope Simplification
+**Location**: History & Favorites Panel section  
+**Original Note**: "History will capture rolls from chat and tie into initiative. Refresh rolls pulls new chat results."
+
+**Changes Made**:
+- Dropped chat/initiative integration and roll capture entirely; history is now a recent-turn list for near-term reuse.
+- Renamed history focus to "Recent Turn Plans" with a configurable limit; entries only come from user actions (Save / Save & Clear).
+- Removed roll-related data (RollRecord), refresh rolls action, and any saving-throw capture requirements.
+- Adjusted context menu to remove Refresh Rolls and keep Delete, Duplicate (favorites only), Edit, Load, and Favorite toggle.
+- Updated localization and API method expectations to match the simplified scope. Supersedes Notes 7, 8, 9, and 11.
 
 ---
 
