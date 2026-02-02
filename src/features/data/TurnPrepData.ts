@@ -10,6 +10,7 @@ export type {
   TurnPrepData,
   TurnPlan,
   TurnSnapshot,
+  ReactionFavoriteSnapshot,
   Reaction,
   SelectedFeature,
   SnapshotFeature,
@@ -57,7 +58,8 @@ export function isValidTurnPrepData(data: TurnPrepData): boolean {
     typeof data.activePlanIndex === 'number' &&
     Array.isArray(data.reactions) &&
     Array.isArray(data.history) &&
-    Array.isArray(data.favorites)
+    Array.isArray((data as any).favoritesTurn ?? (data as any).favorites) &&
+    Array.isArray((data as any).favoritesReaction ?? [])
   );
 }
 
@@ -76,9 +78,12 @@ export function validateAndCorrectTurnPrepData(data: any): TurnPrepData {
       activePlanIndex: -1,
       reactions: [],
       history: [],
-      favorites: [],
+      favoritesTurn: [],
+      favoritesReaction: [],
     };
   }
+
+  const legacyFavorites = Array.isArray(data.favorites) ? data.favorites : [];
 
   return {
     version: data.version ?? 1,
@@ -91,7 +96,10 @@ export function validateAndCorrectTurnPrepData(data: any): TurnPrepData {
       ? data.reactions.map((reaction: any) => normalizeReaction(reaction))
       : [],
     history: Array.isArray(data.history) ? data.history : [],
-    favorites: Array.isArray(data.favorites) ? data.favorites : [],
+    favoritesTurn: Array.isArray(data.favoritesTurn)
+      ? data.favoritesTurn
+      : legacyFavorites,
+    favoritesReaction: Array.isArray(data.favoritesReaction) ? data.favoritesReaction : [],
   };
 }
 

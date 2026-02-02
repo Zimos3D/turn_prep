@@ -11,6 +11,7 @@ import type {
   TurnPlan,
   Reaction,
   TurnSnapshot,
+  ReactionFavoriteSnapshot,
   SelectedFeature,
   SnapshotFeature,
   TurnPrepData,
@@ -382,6 +383,7 @@ export function createTurnSnapshot(plan: TurnPlan): TurnSnapshot {
     trigger: plan.trigger,
     additionalFeatures: (plan.additionalFeatures ?? []).map(snapshotFeature),
     categories: [...(plan.categories ?? [])],
+    roleplay: plan.roleplay ?? '',
   };
 }
 
@@ -403,6 +405,24 @@ export function createReactionSnapshot(reaction: Reaction): TurnSnapshot {
     trigger: reaction.trigger,
     additionalFeatures: (reaction.additionalFeatures ?? []).map(snapshotFeature),
     categories: [],
+  };
+}
+
+/**
+ * Create a Reaction Favorite Snapshot from a Reaction plan
+ * Stores trigger, features, additional features, and notes
+ * @param reaction - The reaction plan to snapshot
+ * @returns A ReactionFavoriteSnapshot object
+ */
+export function createReactionFavoriteSnapshot(reaction: Reaction): ReactionFavoriteSnapshot {
+  const trigger = reaction.trigger || reaction.name || '';
+  return {
+    id: generateId(),
+    createdTime: Date.now(),
+    trigger,
+    reactionFeatures: (reaction.reactionFeatures ?? []).map(snapshotFeature),
+    additionalFeatures: (reaction.additionalFeatures ?? []).map(snapshotFeature),
+    notes: reaction.notes ?? '',
   };
 }
 
@@ -440,7 +460,8 @@ export function createEmptyTurnPrepData(): TurnPrepData {
     activePlanIndex: -1,
     reactions: [],
     history: [],
-    favorites: [],
+    favoritesTurn: [],
+    favoritesReaction: [],
   };
 }
 

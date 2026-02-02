@@ -11,10 +11,12 @@ import type {
   TurnPlan,
   Reaction,
   TurnSnapshot,
+  ReactionFavoriteSnapshot,
   SelectedFeature,
   SnapshotFeature,
   TurnPrepData,
   ModuleSettings,
+  TurnSnapshot,
 } from '../types';
 import { warn, error, logOperationError } from './logging';
 
@@ -466,6 +468,10 @@ export function validateTurnSnapshot(snapshot: any): snapshot is TurnSnapshot {
       throw new Error('Snapshot categories must be valid tag array');
     }
 
+    if (snapshot?.roleplay !== undefined && typeof snapshot.roleplay !== 'string') {
+      throw new Error('Snapshot roleplay must be a string if provided');
+    }
+
     return true;
   } catch (err) {
     warn(`Invalid Turn Snapshot: ${(err as Error).message}`);
@@ -520,7 +526,9 @@ export function validateTurnPrepData(data: any): data is TurnPrepData {
     data.turnPlans = validateTurnPlans(data?.turnPlans || []);
     data.reactions = validateReactions(data?.reactions || []);
     data.history = validateTurnSnapshots(data?.history || []);
-    data.favorites = validateTurnSnapshots(data?.favorites || []);
+    const legacyFavorites = validateTurnSnapshots(data?.favorites || []);
+    data.favoritesTurn = validateTurnSnapshots(data?.favoritesTurn || legacyFavorites);
+    data.favoritesReaction = validateReactionFavorites(data?.favoritesReaction || []);
 
     // Validate active plan index
     if (!isValidNumber(data?.activePlanIndex)) {
@@ -534,6 +542,20 @@ export function validateTurnPrepData(data: any): data is TurnPrepData {
     error(`Invalid Turn Prep data structure: ${(err as Error).message}`);
     return false;
   }
+}
+
+function validateReactionFavorites(entries: any[]): ReactionFavoriteSnapshot[] {
+  if (!Array.isArray(entries)) return [];
+  return entries.filter((entry) => {
+    return (
+      entry &&
+      typeof entry.id === 'string' &&
+      typeof entry.createdTime === 'number' &&
+      typeof entry.trigger === 'string' &&
+      Array.isArray(entry.reactionFeatures) &&
+      Array.isArray(entry.additionalFeatures)
+    );
+  });
 }
 
 // ============================================================================

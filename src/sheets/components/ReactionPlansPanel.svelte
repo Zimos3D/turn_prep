@@ -13,7 +13,7 @@
   import { TurnPrepApiInstance as api } from '../../api/TurnPrepApi';
   import TurnPlanFeatureTable, { type DisplayFeature } from './TurnPlanFeatureTable.svelte';
   import { AUTO_SAVE_DEBOUNCE_MS, FLAG_SCOPE, FLAG_KEY_DATA } from '../../constants';
-  import { createEmptyTurnPrepData, createReactionSnapshot, limitHistory } from '../../utils/data';
+  import { createEmptyTurnPrepData, createReactionFavoriteSnapshot } from '../../utils/data';
   import {
     buildDisplayFeatureList,
     cloneSelectedFeatureArray,
@@ -433,10 +433,10 @@
     }
 
     try {
-      const snapshot = createReactionSnapshot(reaction);
+      const snapshot = createReactionFavoriteSnapshot(reaction);
       const data = await TurnPrepStorage.load(actor);
       data.reactions = reactions.map((r) => sanitizeReaction(r));
-      data.favorites = [...(data.favorites ?? []), snapshot];
+      data.favoritesReaction = [...(data.favoritesReaction ?? []), snapshot];
       await TurnPrepStorage.save(actor, data);
     } catch (error) {
       console.error('[ReactionPlansPanel] Failed to favorite reaction', error);

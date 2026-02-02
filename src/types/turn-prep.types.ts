@@ -149,6 +149,33 @@ export interface TurnSnapshot {
 
   /** Categories from the original plan */
   categories: string[];
+
+  /** Roleplay/notes text from the plan */
+  roleplay?: string;
+}
+
+/**
+ * A snapshot of a reaction plan saved to favorites
+ * Uses reaction-specific fields instead of turn actions/bonus actions
+ */
+export interface ReactionFavoriteSnapshot {
+  /** Unique identifier for this snapshot */
+  id: string;
+
+  /** Timestamp when snapshot was created (milliseconds) */
+  createdTime: number;
+
+  /** Trigger/title captured from the reaction plan */
+  trigger: string;
+
+  /** Snapshot of the reaction features */
+  reactionFeatures: SnapshotFeature[];
+
+  /** Snapshot of additional features */
+  additionalFeatures: SnapshotFeature[];
+
+  /** Notes captured from the reaction plan (not displayed in sidebar) */
+  notes: string;
 }
 
 /**
@@ -200,7 +227,13 @@ export interface TurnPrepData {
   history: TurnSnapshot[];
 
   /** Favorite turn snapshots (reorderable) */
-  favorites: TurnSnapshot[];
+  favoritesTurn: TurnSnapshot[];
+
+  /** Favorite reaction snapshots (reorderable) */
+  favoritesReaction: ReactionFavoriteSnapshot[];
+
+  /** Legacy favorites array (pre-split). Kept optional for migration support. */
+  favorites?: TurnSnapshot[];
 }
 
 // ============================================================================

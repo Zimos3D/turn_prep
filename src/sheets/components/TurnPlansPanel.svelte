@@ -948,7 +948,7 @@
       const snapshot = createTurnSnapshot(plan);
       const data = await TurnPrepStorage.load(actor);
       data.turnPlans = plans.map((p) => sanitizePlan(p));
-      data.favorites = [...(data.favorites ?? []), snapshot];
+      data.favoritesTurn = [...(data.favoritesTurn ?? data.favorites ?? []), snapshot];
       await TurnPrepStorage.save(actor, data);
     } catch (error) {
       console.error('[TurnPlansPanel] Failed to favorite plan', error);

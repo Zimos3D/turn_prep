@@ -161,7 +161,9 @@ export class TurnPrepStorage {
       return false;
     }
 
-    if (!Array.isArray(data.favorites)) {
+    const hasTurnFav = Array.isArray((data as any).favoritesTurn ?? (data as any).favorites);
+    const hasReactionFav = Array.isArray((data as any).favoritesReaction ?? []);
+    if (!hasTurnFav || !hasReactionFav) {
       return false;
     }
 
