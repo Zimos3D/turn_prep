@@ -12,7 +12,7 @@
   import { TurnPrepApiInstance as api } from '../../api/TurnPrepApi';
   import TurnPlanFeatureTable, { type DisplayFeature } from './TurnPlanFeatureTable.svelte';
   import { AUTO_SAVE_DEBOUNCE_MS, FLAG_SCOPE, FLAG_KEY_DATA } from '../../constants';
-  import { createEmptyTurnPrepData } from '../../utils/data';
+  import { createEmptyTurnPrepData, createTurnSnapshot, limitHistory } from '../../utils/data';
   import {
     buildDisplayFeatureList,
     cloneSelectedFeatureArray,
@@ -27,6 +27,8 @@
   import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
   import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
   import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
+  import { TurnPrepStorage } from '../../features/data/TurnPrepStorage';
+  import * as SettingsModule from '../../settings/settings';
 
   type TurnPlansPanelUiState = {
     notesState: Record<string, boolean>;
@@ -915,14 +917,43 @@
     };
   }
 
-  function handleSubmitPlan(planId: string) {
-    console.info('[TurnPlansPanel] Submit plan not yet implemented', planId);
-    ui.notifications?.info(FoundryAdapter.localize('TURN_PREP.Common.ComingSoon'));
+  async function handleSubmitPlan(planId: string) {
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.PlanMissing'));
+      return;
+    }
+
+    try {
+      const snapshot = createTurnSnapshot(plan);
+      const data = await TurnPrepStorage.load(actor);
+      data.turnPlans = plans.map((p) => sanitizePlan(p));
+      const limit = SettingsModule.getHistoryLimitForActor(actor);
+      data.history = limitHistory([...(data.history ?? []), snapshot], limit);
+      await TurnPrepStorage.save(actor, data);
+    } catch (error) {
+      console.error('[TurnPlansPanel] Failed to submit plan', error);
+      ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.TurnPlans.SaveError'));
+    }
   }
 
-  function handleFavoritePlan(planId: string) {
-    console.info('[TurnPlansPanel] Favorite plan not yet implemented', planId);
-    ui.notifications?.info(FoundryAdapter.localize('TURN_PREP.Common.ComingSoon'));
+  async function handleFavoritePlan(planId: string) {
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.PlanMissing'));
+      return;
+    }
+
+    try {
+      const snapshot = createTurnSnapshot(plan);
+      const data = await TurnPrepStorage.load(actor);
+      data.turnPlans = plans.map((p) => sanitizePlan(p));
+      data.favorites = [...(data.favorites ?? []), snapshot];
+      await TurnPrepStorage.save(actor, data);
+    } catch (error) {
+      console.error('[TurnPlansPanel] Failed to favorite plan', error);
+      ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.TurnPlans.SaveError'));
+    }
   }
 
   function reorderPlans(fromIndex: number, toIndex: number) {

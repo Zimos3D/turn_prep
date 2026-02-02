@@ -130,6 +130,15 @@
       "DeleteConfirm": "Delete Reaction?",
       "DeleteConfirmMessage": "Are you sure you want to delete this reaction plan? This cannot be undone.",
       "SaveError": "Failed to save reactions. Please try again.",
+      "ContextMenu": {
+        "Duplicate": "Duplicate Reaction",
+        "Delete": "Delete Reaction",
+        "Submit": "Submit Reaction",
+        "AddToFavorites": "Add to Favorites"
+      },
+      "Messages": {
+        "ReactionMissing": "Reaction not found."
+      },
       "FavoritesTitle": "Favorites",
       "HistoryTitle": "History (Last {limit} Turns)",
       "NoFavorites": "No favorites saved yet",
@@ -167,6 +176,24 @@
       "Prompt": "Your turn has ended. Would you like to save this plan to history?",
       "SaveAndClear": "Save & Clear",
       "DiscardAndClear": "Discard & Clear"
+    },
+    "Sidebar": {
+      "FavoritesTurn": "Favorite Turn Plans",
+      "FavoritesReaction": "Favorite Reaction Plans",
+      "Recent": "Recent Turn Plans",
+      "Action": "Action:",
+      "BonusActions": "Bonus Actions:",
+      "AdditionalFeatures": "Additional Features:",
+      "None": "None",
+      "MissingFeature": "(Missing)",
+      "Load": "Load",
+      "Duplicate": "Duplicate",
+      "Delete": "Delete",
+      "Favorite": "Favorite",
+      "Edit": "Edit",
+      "ToggleSection": "Toggle section",
+      "DeleteConfirm": "Delete this entry?",
+      "UntitledPlan": "Untitled Plan"
     },
     "History": {
       "Load": "Load",

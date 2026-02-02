@@ -386,6 +386,34 @@ export function createTurnSnapshot(plan: TurnPlan): TurnSnapshot {
 }
 
 /**
+ * Create a Turn Snapshot from a Reaction
+ * Treats reaction features as the reactions column; actions/bonus are empty.
+ * @param reaction - The reaction plan to snapshot
+ * @returns A new TurnSnapshot object representing the reaction
+ */
+export function createReactionSnapshot(reaction: Reaction): TurnSnapshot {
+  return {
+    id: generateId(),
+    createdTime: Date.now(),
+    planName: reaction.name,
+    actions: [],
+    bonusActions: [],
+    reactions: (reaction.reactionFeatures ?? []).map(snapshotFeature),
+    movement: '',
+    trigger: reaction.trigger,
+    additionalFeatures: (reaction.additionalFeatures ?? []).map(snapshotFeature),
+    categories: [],
+  };
+}
+
+function truncateWithEllipsis(value: string, maxLength = 18): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength).trimEnd()}…`;
+}
+
+/**
  * Convert a SelectedFeature to a SnapshotFeature
  * @param feature - The feature to snapshot
  * @returns A snapshot of the feature
@@ -393,7 +421,7 @@ export function createTurnSnapshot(plan: TurnPlan): TurnSnapshot {
 export function snapshotFeature(feature: SelectedFeature): SnapshotFeature {
   return {
     itemId: feature.itemId,
-    itemName: feature.itemName,
+    itemName: truncateWithEllipsis(feature.itemName),
     itemType: feature.itemType,
     actionType: feature.actionType,
     isMissing: false,

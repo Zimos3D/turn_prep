@@ -149,7 +149,9 @@ export class FoundryAdapter {
     }
 
     try {
-      const TextEditorClass = (globalThis as any)?.TextEditor;
+      const TextEditorClass = (globalThis as any)?.TextEditor
+        ?? (foundry as any)?.applications?.ux?.TextEditor?.implementation;
+
       if (typeof TextEditorClass?.enrichHTML !== 'function') {
         return content;
       }

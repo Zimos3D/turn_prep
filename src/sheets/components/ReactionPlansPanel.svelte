@@ -13,7 +13,7 @@
   import { TurnPrepApiInstance as api } from '../../api/TurnPrepApi';
   import TurnPlanFeatureTable, { type DisplayFeature } from './TurnPlanFeatureTable.svelte';
   import { AUTO_SAVE_DEBOUNCE_MS, FLAG_SCOPE, FLAG_KEY_DATA } from '../../constants';
-  import { createEmptyTurnPrepData } from '../../utils/data';
+  import { createEmptyTurnPrepData, createReactionSnapshot, limitHistory } from '../../utils/data';
   import {
     buildDisplayFeatureList,
     cloneSelectedFeatureArray,
@@ -28,6 +28,8 @@
   import ContextMenuHost from './context-menu/ContextMenuHost.svelte';
   import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
   import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
+  import { TurnPrepStorage } from '../../features/data/TurnPrepStorage';
+  import * as SettingsModule from '../../settings/settings';
 
   let { actor }: { actor: any } = $props();
 
@@ -421,6 +423,25 @@
     ];
     notesCollapsed = { ...notesCollapsed, [clone.id]: notesCollapsed[source.id] ?? true };
     void saveReactions();
+  }
+
+  async function handleFavoriteReaction(reactionId: string) {
+    const reaction = reactions.find((r) => r.id === reactionId);
+    if (!reaction) {
+      ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.Reactions.Messages.ReactionMissing') ?? 'Reaction not found');
+      return;
+    }
+
+    try {
+      const snapshot = createReactionSnapshot(reaction);
+      const data = await TurnPrepStorage.load(actor);
+      data.reactions = reactions.map((r) => sanitizeReaction(r));
+      data.favorites = [...(data.favorites ?? []), snapshot];
+      await TurnPrepStorage.save(actor, data);
+    } catch (error) {
+      console.error('[ReactionPlansPanel] Failed to favorite reaction', error);
+      ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.Reactions.SaveError'));
+    }
   }
 
   function getReactionFeatures(reaction: Reaction): DisplayFeature[] {
@@ -828,6 +849,12 @@
         icon: 'fa-regular fa-trash-can',
         variant: 'destructive',
         onSelect: () => void deleteReaction(reaction.id)
+      },
+      {
+        id: 'favorite',
+        label: FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenu.AddToFavorites'),
+        icon: 'fa-regular fa-star',
+        onSelect: () => void handleFavoriteReaction(reaction.id)
       },
       ...(arrangeSubmenu.length
         ? [

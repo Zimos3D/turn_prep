@@ -15,6 +15,7 @@ import { mount, unmount } from 'svelte';
 import { MODULE_ID, TAB_ID_MAIN, TAB_ID_SIDEBAR_TURNS } from '../../constants';
 import { info, error } from '../../utils/logging';
 import TidyTurnPrepTab from './TidyTurnPrepTab.svelte';
+import TidyTurnsSidebarTab from './TidyTurnsSidebarTab.svelte';
 
 /**
  * Register Tidy5e sheet integration hooks
@@ -128,8 +129,48 @@ function registerTidyTabs(api: any) {
         title: 'Turns',
         tabId: TAB_ID_SIDEBAR_TURNS,
         iconClass: 'fa-solid fa-hourglass',
-        html: '<div class="turn-prep-sidebar"><p>Sidebar content coming soon...</p></div>',
-        enabled: (data: any) => true
+        html: '<div data-turn-prep-sidebar-root style="height: 100%"></div>',
+        renderScheme: 'force',
+        enabled: (data: any) => true,
+        onRender: (params: any) => {
+          const { element, data } = params;
+          const container = element.querySelector('[data-turn-prep-sidebar-root]');
+
+          if (!container || !data?.actor) {
+            error('Turn Prep sidebar container or actor not found');
+            return;
+          }
+
+          try {
+            (api as any).__turnPrepSidebarMap = (api as any).__turnPrepSidebarMap || new WeakMap<Element, any>();
+            const componentMap = (api as any).__turnPrepSidebarMap as WeakMap<Element, any>;
+            const mapKey = element;
+            const existingComponent = componentMap.get(mapKey);
+
+            if (existingComponent) {
+              if (container.childElementCount > 0) {
+                return;
+              }
+              try {
+                unmount(existingComponent);
+              } catch (unmountErr) {
+                error('Failed to unmount stale Turn Prep sidebar', unmountErr as Error);
+              } finally {
+                componentMap.delete(mapKey);
+              }
+            }
+
+            const component = mount(TidyTurnsSidebarTab, {
+              target: container,
+              props: { actor: data.actor }
+            });
+
+            componentMap.set(mapKey, component);
+            info('Turn Prep sidebar tab mounted successfully');
+          } catch (err) {
+            error('Failed to mount Turn Prep sidebar tab', err as Error);
+          }
+        }
       })
     );
     info(`✓ Registered sidebar Turns tab (ID: ${TAB_ID_SIDEBAR_TURNS})`);
