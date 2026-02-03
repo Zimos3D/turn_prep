@@ -1,16 +1,63 @@
-/**
- * LESS Variables
- * 
- * Central location for all style variables.
- * Colors, spacing, fonts, etc.
- * 
- * TODO: Define:
- * - Color variables (primary, secondary, background, text)
- * - Spacing variables (gaps, padding, margins)
- * - Font variables (sizes, weights, families)
- * - Border variables (widths, styles, radii)
- * - Shadow variables
- * - Z-index variables
- */
+// Tidy5e Quadrone alias map
+// Bridges our local token names to the Quadrone theme variables so light/dark
+// swapping stays consistent. Safe defaults keep non-tidy sheets from breaking.
+:global(.tidy5e-sheet.quadrone) {
+	/* Accent + inverse text */
+	--tp-accent-bg: var(--t5e-primary-accent-color, #742b2b);
+	--tp-accent-text: var(--t5e-color-text-oninverse-default, #f0f0f0);
 
-// TODO: Add LESS variables
+	/* Map legacy/custom tokens we use in components to Quadrone equivalents */
+	--t5e-accent-color: var(--tp-accent-bg);
+	--t5e-accent-color-rgb: 116, 27, 43; /* matches Quadrone default red */
+
+	--t5e-light-color: var(--t5e-color-text-oninverse-default, #f0f0f0);
+	--t5e-primary-color: var(--t5e-color-text-default, #111);
+	--t5e-secondary-color: var(--t5e-color-text-lighter, #444);
+	--t5e-tertiary-color: var(--t5e-color-text-lightest, #777);
+	--t5e-faint-color: var(--t5e-color-text-disabled, #999);
+	--t5e-faintest-color: var(--t5e-color-text-lightest, #b0b0b0);
+
+	--t5e-background: var(--t5e-component-card-default, #f8f4f1);
+	--t5e-sheet-background: var(--t5e-component-card-default, #f8f4f1);
+	--t5e-panel-muted-bg: var(--t5e-component-card-darker, rgba(0, 0, 0, 0.05));
+
+	--t5e-separator-color: var(--t5e-component-field-border, rgba(0, 0, 0, 0.15));
+	--t5e-border-color: var(--t5e-component-field-border, rgba(0, 0, 0, 0.15));
+	--t5e-border-radius: 0.3125rem;
+
+	/* Inputs/buttons */
+	--t5e-button-background: var(--t5e-faintest-color, rgba(0, 0, 0, 0.05));
+	--t5e-button-hover-background: var(--t5e-faint-color, rgba(0, 0, 0, 0.1));
+}
+
+/* Global safety fallback: if Quadrone scope is ever missing, still provide tp-accent-text/bg. */
+:root {
+	--tp-accent-bg: var(--t5e-primary-accent-color, #742b2b);
+	--tp-accent-text: var(--t5e-color-text-oninverse-default, #f0f0f0);
+}
+
+/* Dark-mode safety: keep the alias map in sync when theme-dark flips */
+:global(.tidy5e-sheet.quadrone.theme-dark),
+:global(.tidy5e-sheet.quadrone .theme-dark) {
+	--tp-accent-bg: var(--t5e-primary-accent-color, #c14747);
+	/* In dark mode, use the regular text color (light) on the accent background to keep contrast. */
+	--tp-accent-text: var(--t5e-color-text-default, #f8f8f8);
+
+	--t5e-light-color: var(--t5e-color-text-default, #f8f8f8);
+	--t5e-primary-color: var(--t5e-color-text-default, #f8f8f8);
+	--t5e-secondary-color: var(--t5e-color-text-lighter, #d0d0d0);
+	--t5e-tertiary-color: var(--t5e-color-text-lightest, #bcbcbc);
+	--t5e-faint-color: var(--t5e-color-text-disabled, #8a8a8a);
+	--t5e-faintest-color: var(--t5e-color-text-lightest, #6a6a6a);
+
+	--t5e-background: var(--t5e-component-card-dark-default, #252830);
+	--t5e-sheet-background: var(--t5e-component-card-dark-default, #252830);
+	--t5e-panel-muted-bg: var(--t5e-component-card-darker, rgba(255, 255, 255, 0.05));
+
+	--t5e-separator-color: var(--t5e-component-field-border, rgba(255, 255, 255, 0.2));
+	--t5e-border-color: var(--t5e-component-field-border, rgba(255, 255, 255, 0.2));
+	--t5e-border-radius: 0.3125rem;
+
+	--t5e-button-background: var(--t5e-faintest-color, rgba(255, 255, 255, 0.08));
+	--t5e-button-hover-background: var(--t5e-faint-color, rgba(255, 255, 255, 0.15));
+}

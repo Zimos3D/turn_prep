@@ -686,7 +686,7 @@
       <div class="button expand-button {expanded ? 'expanded' : ''}">
         <i class="fa-solid fa-chevron-right"></i>
       </div>
-      <h3>{title}</h3>
+      <h3 style="color: var(--t5e-color-palette-white, #f0f0f0);">{title}</h3>
       <span class="table-header-count">{features.length}</span>
     </div>
     <div
@@ -1075,9 +1075,11 @@
       font-size: 0.85rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      color: var(--t5e-color-palette-white, #f0f0f0);
     }
 
     .tidy-table-header-row {
+      color: var(--t5e-color-palette-white, #f0f0f0);
       outline: none;
     }
 

@@ -17,14 +17,39 @@
   background: var(--t5e-table-header-row-color, transparent);
   box-shadow: 0 0 0.1875rem inset var(--t5e-table-header-row-border-color, transparent);
   border-radius: 0.3125rem;
+  /* Force inverse/light text so it stays readable over the accent gradient in both modes */
+  color: var(--t5e-color-palette-white, #f0f0f0) !important;
 
   &.toggleable {
     cursor: pointer;
   }
 }
 
+/* Override tidy defaults so header text stays legible on the accent gradient in both modes. */
+:global(.tidy5e-sheet.quadrone) .turn-plan-feature-table .tidy-table-header-row,
+:global(.tidy5e-sheet.quadrone) .turn-plan-feature-table .tidy-table-header-row *,
+:global(.tidy5e-sheet.quadrone.theme-dark) .turn-plan-feature-table .tidy-table-header-row,
+:global(.tidy5e-sheet.quadrone.theme-dark) .turn-plan-feature-table .tidy-table-header-row * {
+  color: var(--t5e-color-palette-white, #f0f0f0) !important;
+}
+
+/* Hard override for header label text (beats tidy base selector). */
+:global(.tidy5e-sheet.quadrone) .turn-plan-feature-table .tidy-table-header-row .header-label-cell h3,
+:global(.tidy5e-sheet.quadrone.theme-dark) .turn-plan-feature-table .tidy-table-header-row .header-label-cell h3 {
+  color: var(--t5e-color-palette-white, #f0f0f0) !important;
+}
+
+.turn-plan-feature-table .tidy-table-header-row,
+.turn-plan-feature-table .tidy-table-header-row .tidy-table-header-cell,
+.turn-plan-feature-table .tidy-table-header-row h3,
+.turn-plan-feature-table .tidy-table-header-row .table-header-count,
+.turn-plan-feature-table .tidy-table-header-row .button.expand-button,
+.turn-plan-feature-table .tidy-table-header-row .button.expand-button i {
+  color: var(--t5e-color-palette-white, #f0f0f0) !important;
+}
+
 .tidy-table-header-cell {
-  color: var(--t5e-tertiary-color, currentColor);
+  color: inherit;
   font-family: var(--t5e-body-font-family, 'Signika', sans-serif);
   font-size: 0.75rem;
   display: flex;
@@ -32,9 +57,9 @@
   justify-content: center;
   align-items: center;
 
-  i {
-    font-size: 0.625rem;
-    color: var(--t5e-light-color, currentColor);
+    i {
+      font-size: 0.625rem;
+      color: inherit;
 
     &.expand-indicator {
       font-size: 0.75rem;
@@ -43,8 +68,8 @@
     }
   }
 
-  &.primary {
-    color: var(--t5e-primary-font-color, currentColor);
+    &.primary {
+      color: inherit;
     font-weight: 700;
     font-size: 0.75rem;
     justify-content: flex-start;
@@ -59,7 +84,7 @@
 
 .table-header-count {
   font-size: 0.75rem;
-  color: var(--t5e-tertiary-color, currentColor);
+  color: inherit;
 }
 
 .tidy-table-row-container {

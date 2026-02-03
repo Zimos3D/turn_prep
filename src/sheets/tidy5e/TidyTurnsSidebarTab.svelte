@@ -507,7 +507,10 @@
     gap: 0.5rem;
     height: 100%;
     overflow-y: auto;
-    color: var(--t5e-primary-color, inherit);
+    color: var(
+      --t5e-color-text-oninverse-default,
+      var(--t5e-primary-color, inherit)
+    );
   }
 
   .sidebar-loading {
@@ -529,7 +532,7 @@
     padding: 0.4rem 0.55rem;
     cursor: pointer;
     position: relative;
-    color: var(--t5e-primary-color, inherit);
+    color: var(--t5e-color-palette-white, inherit);
     background: var(--t5e-primary-accent-color, var(--t5e-accent-surface, var(--t5e-accent-light, rgba(255,255,255,0.04))));
     border-radius: var(--t5e-border-radius, 6px);
   }
@@ -582,6 +585,7 @@
     flex-direction: column;
     gap: 0.3rem;
     background: var(--t5e-surface-color, transparent);
+    color: var(--t5e-color-text-default, var(--t5e-primary-color, inherit));
   }
 
   .favorite-turn {
@@ -601,7 +605,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    color: var(--t5e-primary-color, inherit);
+    color: inherit;
   }
 
   .card-title {
@@ -617,7 +621,7 @@
   .icon-button {
     border: none;
     background: transparent;
-    color: var(--t5e-primary-color, inherit);
+    color: inherit;
     padding: 0.2rem 0.25rem;
     border-radius: 4px;
   }
@@ -650,7 +654,7 @@
     text-align: left;
     border-radius: 4px;
     font-size: 0.9rem;
-    color: var(--t5e-primary-color, inherit);
+    color: inherit;
   }
 
   .menu-item:hover {
@@ -679,7 +683,7 @@
     font-weight: 700;
     min-width: 1.35rem;
     text-align: right;
-    color: var(--t5e-primary-color, inherit);
+    color: inherit;
   }
 
   .row-content {
