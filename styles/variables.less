@@ -25,6 +25,14 @@
 	--t5e-border-color: var(--t5e-component-field-border, rgba(0, 0, 0, 0.15));
 	--t5e-border-radius: 0.3125rem;
 
+	/* Context menu (light mode) */
+	--t5e-context-menu-bg: color-mix(in srgb, var(--t5e-component-card-default, #f8f4f1) 95%, transparent);
+	--t5e-context-menu-border: color-mix(in srgb, var(--t5e-component-field-border, rgba(0, 0, 0, 0.15)) 100%, transparent);
+	--t5e-context-menu-text: var(--t5e-color-text-default, #111);
+	--t5e-context-menu-muted: var(--t5e-color-text-lighter, #444);
+	--t5e-context-menu-hover-bg: color-mix(in srgb, var(--t5e-primary-accent-color, #742b2b) 12%, #ffffff 88%);
+	--t5e-context-menu-hover-border: color-mix(in srgb, var(--t5e-primary-accent-color, #742b2b) 35%, transparent);
+
 	/* Inputs/buttons */
 	--t5e-button-background: var(--t5e-faintest-color, rgba(0, 0, 0, 0.05));
 	--t5e-button-hover-background: var(--t5e-faint-color, rgba(0, 0, 0, 0.1));
@@ -57,6 +65,14 @@
 	--t5e-separator-color: var(--t5e-component-field-border, rgba(255, 255, 255, 0.2));
 	--t5e-border-color: var(--t5e-component-field-border, rgba(255, 255, 255, 0.2));
 	--t5e-border-radius: 0.3125rem;
+
+	/* Context menu (dark mode) */
+	--t5e-context-menu-bg: color-mix(in srgb, var(--t5e-component-card-dark-default, #252830) 90%, rgba(0, 0, 0, 0.6) 10%);
+	--t5e-context-menu-border: rgba(255, 255, 255, 0.12);
+	--t5e-context-menu-text: var(--t5e-color-text-oninverse-default, #f0f0f0);
+	--t5e-context-menu-muted: var(--t5e-color-text-oninverse-lighter, #cfd2da);
+	--t5e-context-menu-hover-bg: rgba(255, 255, 255, 0.1);
+	--t5e-context-menu-hover-border: rgba(255, 255, 255, 0.22);
 
 	--t5e-button-background: var(--t5e-faintest-color, rgba(255, 255, 255, 0.08));
 	--t5e-button-hover-background: var(--t5e-faint-color, rgba(255, 255, 255, 0.15));

@@ -533,7 +533,7 @@
     cursor: pointer;
     position: relative;
     color: var(--t5e-color-palette-white, inherit);
-    background: var(--t5e-primary-accent-color, var(--t5e-accent-surface, var(--t5e-accent-light, rgba(255,255,255,0.04))));
+    background: var(--t5e-theme-color-darkest, var(--t5e-accent-surface, var(--t5e-accent-light, rgba(255,255,255,0.04))));
     border-radius: var(--t5e-border-radius, 6px);
   }
 
@@ -584,7 +584,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    background: var(--t5e-surface-color, transparent);
+    background: var(--t5e-surface-color, transparent); /* fixed typo */
+    position: relative; /* allow overlaid menu to stack above title/content */
     color: var(--t5e-color-text-default, var(--t5e-primary-color, inherit));
   }
 
@@ -634,12 +635,13 @@
     position: absolute;
     top: 1.6rem;
     right: 0;
-    background: var(--t5e-menu-background, var(--t5e-panel-background, #1f1f1f));
-    border: 1px solid var(--t5e-faint-color, currentColor);
+    background: var(--t5e-context-menu-bg, var(--t5e-component-card-default, #fff));
+    border: 1px solid var(--t5e-context-menu-border, var(--t5e-faint-color, currentColor));
     border-radius: 6px;
-    box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
     padding: 0.2rem;
-    z-index: 25;
+    z-index: 200030;
+    color: var(--t5e-context-menu-text, inherit);
     min-width: 160px;
   }
 

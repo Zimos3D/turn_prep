@@ -8,27 +8,28 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 9999;
+  /* High z-index so menus sit above sidebar cards and sheet chrome */
+  z-index: 200000;
 }
 
 .turn-prep-context-menu {
   position: fixed;
-  z-index: 10000;
+  z-index: 200010;
   pointer-events: auto;
   min-width: 11rem;
   max-width: 18rem;
   padding: 0.35rem;
   border-radius: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: var(--t5e-context-menu-bg, rgba(16, 16, 16, 0.95));
-  box-shadow: 0 1rem 1.75rem rgba(0, 0, 0, 0.45);
-  color: var(--t5e-light-color, #f7f5eb);
+  border: 1px solid var(--t5e-context-menu-border, rgba(0, 0, 0, 0.16));
+  background: var(--t5e-component-card-default);
+  box-shadow: 0 1rem 1.75rem rgba(0, 0, 0, 0.35);
+  color: var(--t5e-context-menu-text, #111);
   backdrop-filter: blur(8px);
   animation: turn-prep-context-menu-fade 120ms ease;
 }
 
 .turn-prep-context-menu--submenu {
-  z-index: 10001;
+  z-index: 200020;
 }
 
 .turn-prep-context-menu__sections {
@@ -49,7 +50,7 @@
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--t5e-context-menu-muted, rgba(0, 0, 0, 0.6));
 }
 
 .turn-prep-context-menu__items {
@@ -70,7 +71,7 @@
   font: inherit;
   padding: 0.4rem 0.5rem;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
   text-align: left;
   position: relative;
 }
@@ -85,7 +86,7 @@
 
 .turn-prep-context-menu__item-caret {
   margin-left: auto;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--t5e-context-menu-muted, rgba(0, 0, 0, 0.6));
   font-size: 0.9rem;
 }
 
@@ -97,9 +98,9 @@
 
 .turn-prep-context-menu__item:hover,
 .turn-prep-context-menu__item:focus-visible {
-  background: rgba(255, 255, 255, 0.22) !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22) inset !important;
-  color: rgba(255, 255, 255, 0.97);
+  background: var(--t5e-context-menu-hover-bg, rgba(0, 0, 0, 0.06)) !important;
+  box-shadow: 0 0 0 1px var(--t5e-context-menu-hover-border, rgba(0, 0, 0, 0.12)) inset !important;
+  color: var(--t5e-context-menu-text, #111);
 }
 .turn-prep-context-menu__item.is-destructive {
   color: var(--t5e-warning-accent-color, #d2643a);
@@ -114,7 +115,7 @@
   width: 1rem;
   text-align: center;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--t5e-context-menu-muted, rgba(0, 0, 0, 0.6));
 }
 
 .turn-prep-context-menu__item-text .label {
@@ -124,7 +125,7 @@
 
 .turn-prep-context-menu__item-text .description {
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--t5e-context-menu-muted, rgba(0, 0, 0, 0.6));
 }
 
 @keyframes turn-prep-context-menu-fade {
