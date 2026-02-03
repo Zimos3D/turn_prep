@@ -61,6 +61,13 @@
   let saveTimeout: number | null = null;
   const hookCleanups: Array<() => void> = [];
 
+  function randomId(): string {
+    const foundryRandom = (globalThis as any).foundry?.utils?.randomID;
+    if (typeof foundryRandom === 'function') return foundryRandom();
+    if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID();
+    return Math.random().toString(36).slice(2);
+  }
+
   // Initialize plans from actor flags
   onMount(() => {
     restoreUiStateFromCache();
@@ -88,8 +95,8 @@
 
   function registerHook(hookName: string, handler: (...args: any[]) => void) {
     if (typeof Hooks === 'undefined') return;
-    Hooks.on(hookName, handler);
-    hookCleanups.push(() => Hooks.off(hookName, handler));
+    const hookId = Hooks.on(hookName, handler);
+    hookCleanups.push(() => Hooks.off(hookName, hookId));
   }
 
   function cleanupHooks() {
@@ -232,7 +239,7 @@
     const source = plans[sourceIndex];
     const clone: TurnPlan = {
       ...source,
-      id: foundry.utils.randomID(),
+      id: randomId(),
       name: `${source.name} ${FoundryAdapter.localize('TURN_PREP.Common.CopySuffix') ?? '(Copy)'}`,
       actions: cloneSelectedFeatureArray(source.actions),
       bonusActions: cloneSelectedFeatureArray(source.bonusActions),
@@ -296,7 +303,7 @@
     const additional = cloneSelectedFeatureArray(rawPlan.additionalFeatures ?? []);
 
     return {
-      id: rawPlan.id ?? foundry.utils.randomID(),
+      id: rawPlan.id ?? randomId(),
       name: rawPlan.name ?? FoundryAdapter.localize('TURN_PREP.TurnPlans.PlanLabel'),
       trigger: rawPlan.trigger ?? '',
       actions,
@@ -753,7 +760,7 @@
   // Create a new empty plan
   function createNewPlan() {
     const newPlan: TurnPlan = {
-      id: foundry.utils.randomID(),
+      id: randomId(),
       name: `${FoundryAdapter.localize('TURN_PREP.TurnPlans.PlanLabel')} ${plans.length + 1}`,
       trigger: '',
       actions: [],
@@ -1174,7 +1181,7 @@
                     ownerId={plan.id}
                     panelKind="turn"
                     tableType="actions"
-                    onFeatureDrop={handleFeatureDrop}
+                    onFeatureDrop={(payload) => void handleFeatureDrop(payload as any)}
                     onReorderFeature={(from, to) => handleFeatureReorder(plan.id, 'actions', from, to)}
                     buildMoveToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, false)}
                     buildCopyToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, true)}
@@ -1189,7 +1196,7 @@
                     ownerId={plan.id}
                     panelKind="turn"
                     tableType="bonusActions"
-                    onFeatureDrop={handleFeatureDrop}
+                    onFeatureDrop={(payload) => void handleFeatureDrop(payload as any)}
                     onReorderFeature={(from, to) => handleFeatureReorder(plan.id, 'bonusActions', from, to)}
                     buildMoveToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, false)}
                     buildCopyToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, true)}
@@ -1204,7 +1211,7 @@
                     ownerId={plan.id}
                     panelKind="turn"
                     tableType="additionalFeatures"
-                    onFeatureDrop={handleFeatureDrop}
+                    onFeatureDrop={(payload) => void handleFeatureDrop(payload as any)}
                     onReorderFeature={(from, to) => handleFeatureReorder(plan.id, 'additionalFeatures', from, to)}
                     buildMoveToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, false)}
                     buildCopyToMenu={(feature) => buildTurnMoveCopyMenu(plan.id, feature, true)}

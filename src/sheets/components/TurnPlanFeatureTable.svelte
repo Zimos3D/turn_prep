@@ -289,7 +289,7 @@
     ui.notifications?.warn(message);
   }
 
-  function ensureFeatureItem(feature: DisplayFeature): Item | null {
+  function ensureFeatureItem(feature: DisplayFeature): any {
     const item = getFeatureItem(feature);
     if (!item) {
       notifyWarning('TURN_PREP.TurnPlans.Messages.ItemUnavailable');

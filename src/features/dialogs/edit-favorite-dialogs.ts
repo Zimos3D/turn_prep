@@ -22,7 +22,7 @@ interface BaseDialogProps<TSnapshot> {
 }
 
 abstract class BaseFavoriteEditor<TSnapshot> extends ApplicationV2 {
-  protected component: any = null;
+  protected component: { destroy?: () => void } | null = null;
   protected dirty = false;
   protected current: TSnapshot;
   protected props: BaseDialogProps<TSnapshot>;
@@ -46,18 +46,16 @@ abstract class BaseFavoriteEditor<TSnapshot> extends ApplicationV2 {
 
   override async _replaceHTML(result: HTMLElement, _content: any, _options: any): Promise<HTMLElement> {
     this.renderComponent(result);
-    // Keep a reference for close() cleanup
-    this.element = result;
     return result;
   }
 
   override async render(force?: boolean, options?: any): Promise<any> {
-    const result = await super.render(force, options);
-    const target = (this.element as HTMLElement)?.querySelector('.window-content') as HTMLElement ?? (this.element as HTMLElement);
+    const rendered = await super.render(force, options);
+    const target = (this.element as HTMLElement | null)?.querySelector('.window-content') ?? (this.element as HTMLElement | null);
     if (target) {
-      this.renderComponent(target);
+      this.renderComponent(target as HTMLElement);
     }
-    return result;
+    return rendered;
   }
 
   protected onDirtyChange = (dirty: boolean) => {
@@ -97,9 +95,7 @@ abstract class BaseFavoriteEditor<TSnapshot> extends ApplicationV2 {
   }
 
   protected destroyComponent() {
-    if (this.component?.$destroy) {
-      this.component.$destroy();
-    }
+    this.component?.destroy?.();
     this.component = null;
   }
 
@@ -128,18 +124,12 @@ class TurnFavoriteEditor extends BaseFavoriteEditor<TurnSnapshot> {
   };
 
   protected renderComponent(target: HTMLElement): void {
-    if (this.component) {
-      this.component.$set({
-        snapshot: this.props.snapshot,
-        title: FoundryAdapter.localize('TURN_PREP.Dialog.EditTurnPlan') || 'Edit Turn Plan',
-      });
-      return;
-    }
-
+    this.destroyComponent();
     this.component = mount(EditTurnFavoriteDialog, {
       target,
       props: {
         snapshot: this.props.snapshot,
+        actor: this.props.actor,
         title: FoundryAdapter.localize('TURN_PREP.Dialog.EditTurnPlan') || 'Edit Turn Plan',
         onSave: this.onSave,
         onCancel: this.onCancel,
@@ -166,18 +156,12 @@ class ReactionFavoriteEditor extends BaseFavoriteEditor<ReactionFavoriteSnapshot
   };
 
   protected renderComponent(target: HTMLElement): void {
-    if (this.component) {
-      this.component.$set({
-        snapshot: this.props.snapshot,
-        title: FoundryAdapter.localize('TURN_PREP.Dialog.EditReactionPlan') || 'Edit Reaction Plan',
-      });
-      return;
-    }
-
+    this.destroyComponent();
     this.component = mount(EditReactionFavoriteDialog, {
       target,
       props: {
         snapshot: this.props.snapshot,
+        actor: this.props.actor,
         title: FoundryAdapter.localize('TURN_PREP.Dialog.EditReactionPlan') || 'Edit Reaction Plan',
         onSave: this.onSave,
         onCancel: this.onCancel,

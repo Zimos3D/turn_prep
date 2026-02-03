@@ -45,6 +45,13 @@
   let saveTimeout: number | null = null;
   const hookCleanups: Array<() => void> = [];
 
+  function randomId(): string {
+    const foundryRandom = (globalThis as any).foundry?.utils?.randomID;
+    if (typeof foundryRandom === 'function') return foundryRandom();
+    if (typeof crypto?.randomUUID === 'function') return crypto.randomUUID();
+    return Math.random().toString(36).slice(2);
+  }
+
   onMount(() => {
     loadReactions(true);
 
@@ -110,8 +117,8 @@
 
   function registerHook(hookName: string, handler: (...args: any[]) => void) {
     if (typeof Hooks === 'undefined') return;
-    Hooks.on(hookName, handler);
-    hookCleanups.push(() => Hooks.off(hookName, handler));
+    const hookId = Hooks.on(hookName, handler);
+    hookCleanups.push(() => Hooks.off(hookName, hookId));
   }
 
   function cleanupHooks() {
@@ -180,7 +187,7 @@
     const additionalFeatures = cloneSelectedFeatureArray(rawReaction?.additionalFeatures ?? []);
 
     return {
-      id: rawReaction?.id ?? foundry.utils.randomID(),
+      id: rawReaction?.id ?? randomId(),
       name: typeof rawReaction?.name === 'string'
         ? rawReaction.name
         : reactionsLabel,
@@ -386,7 +393,7 @@
 
   function createNewReaction() {
     const newReaction: Reaction = {
-      id: foundry.utils.randomID(),
+      id: randomId(),
       name: '',
       trigger: '',
       reactionFeatures: [],
@@ -409,7 +416,7 @@
     const copySuffix = FoundryAdapter.localize('TURN_PREP.Common.CopySuffix') ?? '(Copy)';
     const clone: Reaction = {
       ...source,
-      id: foundry.utils.randomID(),
+      id: randomId(),
       name: `${source.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} ${copySuffix}`.trim(),
       reactionFeatures: cloneSelectedFeatureArray(source.reactionFeatures),
       additionalFeatures: cloneSelectedFeatureArray(source.additionalFeatures),
@@ -1014,7 +1021,7 @@
                   title={FoundryAdapter.localize('TURN_PREP.Reactions.ReactionFeatures')}
                   actor={actor}
                   features={getReactionFeatures(reaction)}
-                  onFeatureDrop={handleFeatureDrop}
+                  onFeatureDrop={(payload) => void handleFeatureDrop(payload as any)}
                   onReorderFeature={(from, to) => handleFeatureReorder(reaction.id, 'reactionFeatures', from, to)}
                   buildMoveToMenu={(feature) => buildReactionMoveCopyMenu(reaction.id, feature, false)}
                   buildCopyToMenu={(feature) => buildReactionMoveCopyMenu(reaction.id, feature, true)}
@@ -1029,7 +1036,7 @@
                   title={FoundryAdapter.localize('TURN_PREP.Reactions.AdditionalFeatures')}
                   actor={actor}
                   features={getAdditionalFeatures(reaction)}
-                  onFeatureDrop={handleFeatureDrop}
+                  onFeatureDrop={(payload) => void handleFeatureDrop(payload as any)}
                   onReorderFeature={(from, to) => handleFeatureReorder(reaction.id, 'additionalFeatures', from, to)}
                   buildMoveToMenu={(feature) => buildReactionMoveCopyMenu(reaction.id, feature, false)}
                   buildCopyToMenu={(feature) => buildReactionMoveCopyMenu(reaction.id, feature, true)}

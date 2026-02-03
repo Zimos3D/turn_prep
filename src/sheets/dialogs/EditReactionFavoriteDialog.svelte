@@ -1,7 +1,10 @@
 <script lang="ts">
-  import type { ReactionFavoriteSnapshot } from '../../types';
+  import type { ReactionFavoriteSnapshot, Reaction, SelectedFeature } from '../../types';
+  import ReactionPlanEditorCard from './ReactionPlanEditorCard.svelte';
+  import { generateId, snapshotFeature } from '../../utils/data';
 
   interface Props {
+    actor: any;
     snapshot: ReactionFavoriteSnapshot;
     title: string;
     onSave?: (updated: ReactionFavoriteSnapshot) => void;
@@ -10,60 +13,78 @@
     onChange?: (working: ReactionFavoriteSnapshot) => void;
   }
 
-  const { snapshot, title, onSave, onCancel, onDirtyChange, onChange }: Props = $props();
+  const { actor, snapshot, title, onSave, onCancel, onDirtyChange, onChange }: Props = $props();
 
-  function clone<T>(value: T): T {
-    return value ? JSON.parse(JSON.stringify(value)) as T : value;
-  }
-
-  function normalizeSnapshot(value: ReactionFavoriteSnapshot): ReactionFavoriteSnapshot {
-    const base = clone(value) || ({} as ReactionFavoriteSnapshot);
+  function mapSnapshotFeature(feature: any): SelectedFeature {
     return {
-      id: base.id,
-      createdTime: base.createdTime ?? Date.now(),
-      trigger: base.trigger ?? '',
-      reactionFeatures: base.reactionFeatures ?? [],
-      additionalFeatures: base.additionalFeatures ?? [],
-      notes: base.notes ?? '',
-    } as ReactionFavoriteSnapshot;
+      itemId: feature?.itemId ?? '',
+      itemName: feature?.itemName ?? '',
+      itemType: feature?.itemType ?? '',
+      actionType: feature?.actionType ?? '',
+    } satisfies SelectedFeature;
   }
 
-  const emptySnapshot = normalizeSnapshot({} as ReactionFavoriteSnapshot);
-  let working = $state<ReactionFavoriteSnapshot>(emptySnapshot);
+  function snapshotToReaction(value: ReactionFavoriteSnapshot): Reaction {
+    const base = value ?? ({} as ReactionFavoriteSnapshot);
+    const id = base.id ?? generateId();
+    return {
+      id,
+      name: base.trigger ?? '',
+      trigger: base.trigger ?? '',
+      reactionFeatures: (base.reactionFeatures ?? []).map(mapSnapshotFeature),
+      additionalFeatures: (base.additionalFeatures ?? []).map(mapSnapshotFeature),
+      notes: base.notes ?? '',
+      createdTime: base.createdTime ?? Date.now(),
+      isFavorite: true,
+    } satisfies Reaction;
+  }
+
+  function reactionToSnapshot(reaction: Reaction, metaId: string, metaCreated: number): ReactionFavoriteSnapshot {
+    return {
+      id: metaId,
+      createdTime: metaCreated,
+      trigger: reaction.trigger ?? reaction.name ?? '',
+      reactionFeatures: (reaction.reactionFeatures ?? []).map(snapshotFeature),
+      additionalFeatures: (reaction.additionalFeatures ?? []).map(snapshotFeature),
+      notes: reaction.notes ?? '',
+    } satisfies ReactionFavoriteSnapshot;
+  }
+
+  let metaId = generateId();
+  let metaCreated = Date.now();
+  let workingReaction = $state<Reaction>(snapshotToReaction({} as ReactionFavoriteSnapshot));
   let dirty = $state(false);
 
   $effect(() => {
-    // Reset when incoming snapshot changes
-    working = normalizeSnapshot(snapshot);
+    metaId = snapshot?.id ?? metaId;
+    metaCreated = snapshot?.createdTime ?? metaCreated;
+    const nextReaction = snapshotToReaction(snapshot);
+    workingReaction = nextReaction;
     dirty = false;
-    onDirtyChange?.(dirty);
-    onChange?.(working);
+    onDirtyChange?.(false);
+    onChange?.(reactionToSnapshot(nextReaction, metaId, metaCreated));
   });
 
-  function markDirty(next: ReactionFavoriteSnapshot) {
-    working = next;
+  function markDirty(next: Reaction) {
+    workingReaction = next;
     dirty = true;
     onDirtyChange?.(dirty);
-    onChange?.(working);
-  }
-
-  function updateField(field: keyof ReactionFavoriteSnapshot, value: any) {
-    markDirty({ ...working, [field]: value });
-  }
-
-  function removeFeature(key: 'reactionFeatures' | 'additionalFeatures', index: number) {
-    const updated = { ...working, [key]: (working[key] ?? []).filter((_, i) => i !== index) };
-    markDirty(updated);
+    onChange?.(reactionToSnapshot(next, metaId, metaCreated));
   }
 
   function handleSave() {
     dirty = false;
     onDirtyChange?.(dirty);
-    onSave?.(working);
+    onSave?.(reactionToSnapshot(workingReaction, metaId, metaCreated));
   }
 
   function handleCancel() {
     onCancel?.();
+  }
+
+  function handleReactionChange(next: Reaction) {
+    metaId = next.id ?? metaId;
+    markDirty(next);
   }
 </script>
 
@@ -91,46 +112,7 @@
   </header>
 
   <section class="form-grid single">
-    <label>
-      <span>Trigger / Title</span>
-      <input value={working.trigger} oninput={(e) => updateField('trigger', (e.currentTarget as HTMLInputElement).value)} />
-    </label>
-    <label>
-      <span>Notes</span>
-      <textarea rows="3" value={working.notes} oninput={(e) => updateField('notes', (e.currentTarget as HTMLTextAreaElement).value)}></textarea>
-    </label>
-  </section>
-
-  <section class="feature-section">
-    <h3>Reactions</h3>
-    {#if working.reactionFeatures.length === 0}
-      <div class="empty">None</div>
-    {:else}
-      {#each working.reactionFeatures as feature, index}
-        <div class="feature-row">
-          <span>{feature.itemName}</span>
-          <button class="icon" aria-label="Remove" onclick={() => removeFeature('reactionFeatures', index)}>
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
-      {/each}
-    {/if}
-  </section>
-
-  <section class="feature-section">
-    <h3>Additional Features</h3>
-    {#if working.additionalFeatures.length === 0}
-      <div class="empty">None</div>
-    {:else}
-      {#each working.additionalFeatures as feature, index}
-        <div class="feature-row">
-          <span>{feature.itemName}</span>
-          <button class="icon" aria-label="Remove" onclick={() => removeFeature('additionalFeatures', index)}>
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
-      {/each}
-    {/if}
+    <ReactionPlanEditorCard actor={actor} reaction={workingReaction} onChange={handleReactionChange} notesInitiallyOpen={true} />
   </section>
 </div>
 
@@ -219,38 +201,5 @@
     display: grid;
     grid-template-columns: 1fr;
     gap: 0.5rem;
-  }
-
-  .form-grid label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .form-grid input,
-  .form-grid textarea {
-    width: 100%;
-  }
-
-  .feature-section {
-    border: 1px solid var(--t5e-faint-color, currentColor);
-    border-radius: 6px;
-    padding: 0.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-
-  .feature-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.25rem 0;
-  }
-
-  .empty {
-    color: var(--t5e-tertiary-color, inherit);
-    font-style: italic;
   }
 </style>
