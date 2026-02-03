@@ -836,6 +836,8 @@
         ]
       : [];
 
+    const favoriteLabel = resolveFavoriteReactionLabel();
+
     return [
       {
         id: 'duplicate',
@@ -852,7 +854,7 @@
       },
       {
         id: 'favorite',
-        label: FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenu.AddToFavorites'),
+        label: favoriteLabel,
         icon: 'fa-regular fa-star',
         onSelect: () => void handleFavoriteReaction(reaction.id)
       },
@@ -869,6 +871,16 @@
         : [])
     ];
   }
+
+    function resolveFavoriteReactionLabel(): string {
+      const primary = FoundryAdapter.localize('TURN_PREP.Reactions.ContextMenu.AddToFavorites');
+      if (primary && primary !== 'TURN_PREP.Reactions.ContextMenu.AddToFavorites') return primary;
+
+      const common = FoundryAdapter.localize('TURN_PREP.Common.AddToFavorites');
+      if (common && common !== 'TURN_PREP.Common.AddToFavorites') return common;
+
+      return 'Add to Favorites';
+    }
 
   function buildReactionContextMenuSections(reaction: Reaction): ContextMenuSection[] {
     return [
