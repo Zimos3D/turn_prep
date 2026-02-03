@@ -1,11 +1,11 @@
 
 # Phase 4 Implementation Plan - UI Components
 
-**Status**: In Progress - Session 0 & 1  
+**Status**: In Progress - Sidebar built; Main tab largely complete  
 **Phase**: 4 - UI Components  
 **Dependencies**: Phase 1 ✅, Phase 2 ✅, Phase 3 ✅  
 **Start Date**: January 21, 2026  
-**Last Updated**: Session 0 & 1 - Tab integration complete, DM Questions panel added
+**Last Updated**: February 3, 2026 - Sidebar done; favorites edit mode pending; legacy dialogs removed
 
 ---
 
@@ -20,7 +20,21 @@
 2. **Use HtmlTab** (not SvelteTab) to create a container div
 3. **Manually mount** our bundled Svelte components using Svelte's `mount()` function in `onRender`
 
+## Progress Update (February 3, 2026)
+
+- Main tab: Turn planning, reactions, and DM questions panels are implemented and mounted via HtmlTab; continue polish and verification of search/drag-drop edge cases.
+- Sidebar: History & Favorites panel is built; edit mode for turn favorites and reaction favorites remains.
+- Integration: Tidy5e tab registration and Svelte mount pattern in place following the Item Piles approach.
+- Outstanding for Phase 4: favorite edit mode (sidebar), localization/LESS polish, and the manual testing sweep. Dialog migrations are no longer needed (activity selector and end-of-turn dialogs removed from scope).
+
+## Scope Changes
+
+- Dropped activity selection dialog: feature tables show full features, so no activity picker is required when sending to Turn Prep.
+- Dropped end-of-turn dialog: we are not hooking into initiative; users can resubmit plans if needed without a dedicated prompt.
+
 ### 4. History & Favorites Panel (Sidebar)
+
+_Status: Implemented in the Tidy5e sidebar; edit mode for turn and reaction favorites still needs to be wired. Dialog-driven flows removed; edit is handled via dedicated edit panels instead._
 
 **Purpose**: Show Favorite Turn Plans, Favorite Reaction Plans, and recent turn plans in the sidebar for quick reuse. No chat roll capture or initiative tie-ins—recent plans are a short-term history meant to re-run useful tactics.
 
@@ -158,6 +172,8 @@ static async editSnapshot(actor: Actor, snapshotId: string, updates: Partial<Tur
 
 ### 1. DM Questions Panel
 
+_Status: Implemented on the main tab; keep verifying save/send flows during polish._
+
 **Purpose**: Quick text entry for questions to ask the DM during the player's turn.
 
 **Current Implementation** (Session 0 & 1):
@@ -239,6 +255,8 @@ static async sendQuestionPublic(actor: Actor, questionText: string): Promise<voi
 ---
 
 ### 2. Turn Plans Panel (Main Interface)
+
+_Status: Implemented on the main tab; continue polish and edge-case testing (search, drag/drop, duplicate/delete confirmations)._ 
 
 **Purpose**: Plan multiple turn options with features, triggers, and notes.
 
@@ -430,6 +448,41 @@ function generatePlanName(plan: TurnPlan, actor: Actor): string {
 ---
 
 ### 3. Reactions Panel
+
+_Status: Implemented on the main tab; follow-up polish and testing alongside Turn Plans._
+
+### Edit Panels for Favorites (New)
+
+**Goal**: Provide a floating dialog (ApplicationV2 window) inside Foundry to edit favorite turn plans and favorite reaction plans. Opens from the favorites list context menu; preloads the favorite’s data; offers Save and Cancel only.
+
+**Behavior**:
+- Opens when the user clicks Edit on a favorite (turn or reaction) in the sidebar panel.
+- Pre-populates fields from the selected favorite snapshot (names, trigger, sections, notes where applicable).
+- Editable immediately: users can modify text fields and remove existing features; adding new features from inside the panel is deferred to a later enhancement.
+- Header actions replace “New”/other buttons with Save (floppy-disk icon) and Cancel (X icon) on the right side of the section header.
+- Context menu is limited to Save and Cancel; all other actions (duplicate, favorite toggles, etc.) are hidden in this mode.
+- On Cancel/close: if no changes, close silently; if there are unsaved changes, prompt with “Save and close” vs. “Close without saving.”
+- Titles: “Edit Turn Plan” and “Edit Reaction Plan” (omit the word “Favorite”).
+- No change to “Send to Turn Prep” flow; this edit panel is local to favorites.
+- Search/add from inside the panel is deferred; current goal is edit/remove and save/cancel.
+
+**Implementation Plan**:
+1) Create two edit panel components (Turn, Reaction) as Svelte-backed ApplicationV2 windows (floating dialog, not a sheet tab); reuse card layout but swap header actions to Save/Cancel.
+2) Wire the favorites Edit context menu to open the corresponding edit panel with the favorite’s data.
+3) Enable editing of text fields and removal of existing features; defer in-panel add/search to a later pass.
+4) Restrict context menu inside the panel to Save and Cancel only; remove duplicate/favorite/other actions.
+5) Implement unsaved-change detection to trigger a confirm dialog (“Save and close” / “Close without saving”).
+6) On Save: persist updates to the favorite snapshot and refresh sidebar lists; on Cancel/close: leave data untouched.
+7) Add localization for titles and Save/Cancel labels/icons; style with existing LESS variables for modal consistency.
+
+**ApplicationV2 + Svelte Dialog Reference (for reuse)**:
+- Base: extend `foundry.applications.api.ApplicationV2`; mount a Svelte component into the body during `render` and destroy it in `close`.
+- `DEFAULT_OPTIONS` suggestions: unique `id`, `window` title (localized), `resizable: true/false`, `minimizable: false`, `position` width ~540-620, height auto.
+- Rendering pattern: call `const rendered = await super.render(options);` then mount Svelte into `rendered.content` (or first child) with props `{ actor, snapshot, onSave, onCancel }`. On subsequent renders, `$set` new props.
+- Closing: override `close()` to `$destroy()` the Svelte component before calling `super.close()`.
+- Unsaved changes: track dirty state in Svelte; when window `close` is triggered, if dirty prompt with “Save and close” / “Close without saving”; if clean, close immediately.
+- Icons: use Font Awesome `fa-floppy-disk` for Save and `fa-xmark` for Cancel in the header actions.
+- Z-index: rely on ApplicationV2 defaults; avoid sheet tab registration—these are floating dialogs launched from the favorites context menu.
 
 **Purpose**: Pre-plan reactions with triggers and supporting features.
 

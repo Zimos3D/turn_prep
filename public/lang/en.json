@@ -7,7 +7,16 @@
       "Remove": "Remove",
       "Actions": "Actions",
       "ComingSoon": "Coming soon",
-      "CopySuffix": "(Copy)"
+      "CopySuffix": "(Copy)",
+      "Save": "Save",
+      "Cancel": "Cancel",
+      "Discard": "Discard"
+    },
+    "Dialog": {
+      "UnsavedChangesTitle": "Unsaved Changes",
+      "UnsavedChangesPrompt": "Save changes before closing?",
+      "EditTurnPlan": "Edit Turn Plan",
+      "EditReactionPlan": "Edit Reaction Plan"
     },
     "ContextMenu": {
       "OpenLabel": "Open context menu",

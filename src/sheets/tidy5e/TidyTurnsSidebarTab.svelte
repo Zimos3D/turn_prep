@@ -12,6 +12,7 @@
   } from '../../types';
   import { FoundryAdapter } from '../../foundry/FoundryAdapter';
   import { TurnPrepStorage } from '../../features/data/TurnPrepStorage';
+  import { openTurnFavoriteEditor, openReactionFavoriteEditor } from '../../features/dialogs/edit-favorite-dialogs';
   import { generateId, limitHistory } from '../../utils/data';
   import * as SettingsModule from '../../settings/settings';
   import { warn, error as logError } from '../../utils/logging';
@@ -83,8 +84,8 @@
 
   function registerHook(hookName: string, handler: (...args: any[]) => void) {
     if (typeof Hooks === 'undefined') return;
-    Hooks.on(hookName, handler);
-    hookCleanups.push(() => Hooks.off(hookName, handler));
+    const hookId = Hooks.on(hookName, handler);
+    hookCleanups.push(() => Hooks.off(hookName, hookId));
   }
 
   function cleanupHooks() {
@@ -329,7 +330,26 @@
     });
   }
 
-  async function handleFavoriteFromRecent(snapshot: TurnSnapshot) {
+  async function handleEdit(card: SidebarCard) {
+    if (card.section === 'favorites-reaction') {
+      await openReactionFavoriteEditor({
+        actor,
+        snapshot: card.source as ReactionFavoriteSnapshot,
+        onSaved: refreshData,
+      });
+      return;
+    }
+
+    await openTurnFavoriteEditor({
+      actor,
+      snapshot: card.source as TurnSnapshot,
+      onSaved: refreshData,
+    });
+  }
+
+  async function handleFavoriteFromRecent(card: SidebarCard) {
+    if (card.variant !== 'recent') return;
+    const snapshot = card.source as TurnSnapshot;
     await updateData((data) => {
       const existing = (data.favoritesTurn ?? data.favorites ?? []).some((s: TurnSnapshot) => s.id === snapshot.id);
       if (!existing) {
@@ -448,13 +468,13 @@
                           </button>
                         {/if}
                         {#if card.section !== 'recent'}
-                          <button class="menu-item" onclick={() => { closeMenu(); warn(label('TURN_PREP.Messages.NotImplemented')); }}>
+                          <button class="menu-item" onclick={() => { closeMenu(); void handleEdit(card); }}>
                             <i class="fa-solid fa-pen"></i> {label('TURN_PREP.Sidebar.Edit')}
                           </button>
                         {/if}
 
                         {#if card.section === 'recent'}
-                          <button class="menu-item" onclick={() => { closeMenu(); void handleFavoriteFromRecent(card.source); }}>
+                          <button class="menu-item" onclick={() => { closeMenu(); void handleFavoriteFromRecent(card); }}>
                             <i class="fa-solid fa-star"></i> {label('TURN_PREP.Sidebar.Favorite')}
                           </button>
                         {/if}

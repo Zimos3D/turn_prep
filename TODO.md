@@ -76,7 +76,7 @@ Each TODO in code files corresponds to items in this list.
 
 ### Phase 4: UI Components (Visual Layer) 🔄 IN PROGRESS
 
-**Current Status**: Session 0, 1, & 2 - Discovered working Svelte integration pattern
+**Current Status**: Session 3+ - Main Turn Prep tab is functional; sidebar is built (pending favorites edit mode); Svelte HtmlTab mounting pattern confirmed.
 
 **Major Discovery**: Found the "Item Piles" pattern for Svelte + Tidy5e integration!
 - ✅ CAN use Svelte 5 with Tidy5e (bundle own runtime + manual mount)
@@ -86,35 +86,22 @@ Each TODO in code files corresponds to items in this list.
 - ✅ MUST use HtmlTab + container div + `mount()` in onRender
 - ✅ MUST scope CSS with unique hash (cssHash config in vite)
 
-**Skeleton Implementation Complete** ✅ (Session 0-3):
+**Work Completed** ✅ (Sessions 0-3+):
 - [x] **CRITICAL**: Research Tidy5e Svelte integration options
 - [x] Discovered Item Piles pattern - HtmlTab + manual mount
 - [x] Updated vite.config.ts with cssHash for scoped styles
 - [x] Created initial tab registration with HtmlTab
-- [x] TurnPlansPanel skeleton (main component + state management)
-- [x] TurnPlanCard skeleton (individual plan display + editing)
-- [x] FeatureSection skeleton (feature list + search integration)
-- [x] FeatureSearch skeleton (search UI + placeholder implementation)
+- [x] TurnPlansPanel, TurnPlanCard, FeatureSection, and FeatureSearch wired into the main Turn Prep tab
+- [x] ReactionsPanel and DM Questions panel added to the main tab
+- [x] Tidy5e tab registration (main + sidebar) confirmed with HtmlTab + mount()
+- [x] History/Favorites sidebar panel implemented with load, delete, duplicate, and favorite toggle
 - [x] Verified build success (144 modules, 184.59 kB output)
 - [x] Documentation created (PHASE4_SKELETON_IMPLEMENTATION.md)
 
-**Next Implementation Tasks**:
-- [ ] **PRIORITY**: Wire TurnPlansPanel into Main Tab (test integration)
-- [ ] **PRIORITY**: Implement FeatureSearch actual search logic
-  - Current: Placeholder returning empty results
-  - Target: Query actor features and display results
-- [ ] Convert DM Questions to proper Svelte component
-  - Current: HTML strings + vanilla JS handlers
-  - Target: Svelte component with $state runes and reactivity
-  - Model: Use TurnPlansPanel pattern as reference
-- [ ] **PRIORITY**: Migrate activity selection dialog from Dialog (V1) to ApplicationV2 or Svelte component
-  - Current: Using deprecated `Dialog` class in ContextMenuHandler.ts (line 343)
-  - Deprecated since Foundry V13, will be removed in V16
-  - Replace with either ApplicationV2 or proper Svelte dialog component
-- [ ] Simple components: RollButton, HistoryFavoritesList (after main components)
-- [ ] Input components: FeatureSelectorWidget (after main flow)
-- [ ] Panel components: DmQuestionsPanel (Svelte version), ReactionsPanel
-- [ ] Styling refinement and polish (after functionality complete)
+**Remaining Phase 4 Tasks**:
+- [ ] Implement edit panels for turn/reaction favorites: editable fields, remove features, header Save (disk) + Cancel (X), context menu limited to Save/Cancel, unsaved-changes prompt, titles “Edit Turn Plan” / “Edit Reaction Plan”
+- [ ] Localization and LESS polish pass across main tab and sidebar
+- [ ] Manual QA sweep (feature search, drag/drop, duplicate/delete confirmations, DM question save/send)
 
 **See Documentation**:
 - `TIDY5E_INTEGRATION_SOLUTION.md` - Complete working pattern

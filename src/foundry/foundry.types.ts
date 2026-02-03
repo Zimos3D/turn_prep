@@ -16,6 +16,9 @@ import type { TurnPrepData } from '../types';
  * Adds type-safe flag access
  */
 export interface Actor5e extends Actor {
+  /** Unique identifier */
+  id?: string;
+
   /** D&D 5e system data */
   system?: {
     attributes?: any;
