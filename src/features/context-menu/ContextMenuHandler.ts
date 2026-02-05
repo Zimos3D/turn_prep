@@ -3,12 +3,12 @@
  * 
  * Integrates with Foundry's right-click context menu system.
  * Provides:
- * 1. "Add to Turn Prep" on items (with activity selection dialog if needed)
+ * 1. "Add to Turn Prep" on items (adds all activities)
  * 2. Right-click context menu in Turn Prep panel (remove, details, swap, copy, duplicate, favorite)
  * 3. Drag & drop field movement with activity validation
  * 
  * Key Features:
- * - Smart activity selection dialog (shows only if multiple activation types)
+ * - Adds all activities for items with multiple activation types
  * - Font Awesome icons for action types (circle, play, exchange)
  * - Drag & drop validation checks source item for matching activities
  * - Full error handling and user feedback
@@ -22,16 +22,6 @@ import { createTurnPlan, createReaction } from '../../utils/data';
 import type { TurnPrepData, TurnPlan, Reaction, SelectedFeature } from '../../types';
 import { editSessionStore } from '../edit-mode/EditSessionStore';
 import { get } from 'svelte/store';
-
-/**
- * Activity selection dialog option
- */
-interface ActivityDialogOption {
-  activity: any; // D&D 5e Activity object
-  activationType: string;
-  displayLabel: string;
-  icon: string;
-}
 
 /**
  * Context menu item data
@@ -245,7 +235,7 @@ export class ContextMenuHandler {
 
   /**
    * Handle adding an item to turn prep
-   * Shows activity selection dialog if multiple activities exist
+   * Adds the feature once with access to all its activities
    */
   private static async handleAddToTurnPrep(
     actor: Actor,
@@ -255,114 +245,17 @@ export class ContextMenuHandler {
     debug(`Handling add to turn prep for item: ${item.name}`);
 
     try {
-      if (!activities || activities.length === 0) {
-        await ContextMenuHandler.addFeatureToField(actor, item, null, 'other');
-        return;
-      }
-
-      // If only one activity, add directly
-      if (activities.length === 1) {
-        const activity = activities[0];
-        const activationType = activity.activation?.type || 'other';
-        await ContextMenuHandler.addFeatureToField(actor, item, activity, activationType);
-        return;
-      }
-
-      // Multiple activities - show selection dialog
-      const selected = await ContextMenuHandler.showActivitySelectionDialog(item, activities);
-      if (selected) {
-        await ContextMenuHandler.addFeatureToField(
-          actor,
-          item,
-          selected.activity,
-          selected.activationType
-        );
-      }
+      // Add the feature once (the item retains access to all its activities)
+      const firstActivity = activities.length > 0 ? activities[0] : null;
+      const activationType = firstActivity?.activation?.type || 'other';
+      await ContextMenuHandler.addFeatureToField(actor, item, firstActivity, activationType);
     } catch (error) {
       warn(`Failed to add feature to turn prep: ${error}`);
       ui.notifications?.error(`Failed to add ${item.name} to turn prep`);
     }
   }
 
-  /**
-   * Show activity selection dialog when item has multiple activities
-   */
-  private static async showActivitySelectionDialog(
-    item: Item,
-    activities: any[]
-  ): Promise<ActivityDialogOption | null> {
-    return new Promise((resolve) => {
-      // Get unique activation types
-      const options: ActivityDialogOption[] = activities
-        .filter((activity) => activity.activation?.type)
-        .map((activity) => ({
-          activity,
-          activationType: activity.activation.type,
-          displayLabel: activity.name || ACTIVATION_LABELS[activity.activation.type] || activity.activation.type,
-          icon: ACTIVATION_ICONS[activity.activation.type] || 'fa-star',
-        }));
 
-      // If no valid activities, cancel
-      if (options.length === 0) {
-        resolve(null);
-        return;
-      }
-
-      // If only one option after filtering, select it
-      if (options.length === 1) {
-        resolve(options[0]);
-        return;
-      }
-
-      // Build dialog HTML
-      let dialogHtml = `<form style="padding: 1rem;">`;
-      dialogHtml += `<p style="margin-bottom: 1rem;">Select which activity to add:</p>`;
-      dialogHtml += `<div style="display: flex; flex-direction: column; gap: 0.5rem;">`;
-
-      options.forEach((option, index) => {
-        dialogHtml += `
-          <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-            <input type="radio" name="activity" value="${index}" ${index === 0 ? 'checked' : ''} />
-            <i class="fas ${option.icon}" style="width: 1rem; text-align: center;"></i>
-            <span>${option.displayLabel}</span>
-          </label>
-        `;
-      });
-
-      dialogHtml += `</div></form>`;
-
-      // TODO: Migrate to ApplicationV2 in Phase 4 (Foundry V13+ deprecates Dialog/ApplicationV1)
-      // This is a temporary solution using the legacy Dialog class
-      // Will be replaced with proper Svelte dialog component in Phase 4 UI implementation
-      const dialog = new Dialog(
-        {
-          title: `Add ${item.name} to Turn Prep`,
-          content: dialogHtml,
-          buttons: {
-            select: {
-              label: 'Add',
-              icon: '<i class="fas fa-check"></i>',
-              callback: (html: JQuery) => {
-                const selectedIndex = parseInt(
-                  html.find('input[name="activity"]:checked').val() as string
-                );
-                resolve(options[selectedIndex]);
-              },
-            },
-            cancel: {
-              label: 'Cancel',
-              icon: '<i class="fas fa-times"></i>',
-              callback: () => resolve(null),
-            },
-          },
-          default: 'select',
-        },
-        { width: 400 }
-      );
-
-      dialog.render(true);
-    });
-  }
 
   /**
    * Add a feature to a turn plan field
