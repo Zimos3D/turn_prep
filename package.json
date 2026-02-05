@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "package": "node scripts/package.js",
+    "release": "npm run build && npm run package",
     "dev": "vite",
     "link-create": "node symlink-module-build-dir.js",
     "link-remove": "node symlink-module-build-dir.js --clean"
@@ -13,6 +15,7 @@
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@types/node": "^25.0.9",
     "@types/uuid": "^10.0.0",
+    "archiver": "^7.0.1",
     "less": "^4.5.1",
     "svelte": "^5.0.0",
     "typescript": "^5.0.0",
