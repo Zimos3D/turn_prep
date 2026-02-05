@@ -24,7 +24,7 @@
   // Load initial data directly
   function loadQuestions(): DmQuestion[] {
     if (!actor) {
-      return Array.from({ length: 5 }, () => ({ question: '', answer: '' }));
+      return Array.from({ length: 1 }, () => ({ question: '', answer: '' }));
     }
     
     const savedData = actor.getFlag(FLAG_SCOPE, FLAG_KEY_DATA) as any;
@@ -49,8 +49,8 @@
       }
     }
     
-    // If no questions, start with 5 empty ones
-    return Array.from({ length: 5 }, () => ({ question: '', answer: '' }));
+    // If no questions, start with 1 empty one
+    return Array.from({ length: 1 }, () => ({ question: '', answer: '' }));
   }
 
   // Initialize questions from actor flags

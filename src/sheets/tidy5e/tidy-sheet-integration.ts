@@ -60,6 +60,7 @@ function registerTidyTabs(api: any) {
       new api.models.HtmlTab({
         title: 'Turn Prep',
         tabId: TAB_ID_MAIN,
+        iconClass: 'fa-solid fa-hourglass',
         html: '<div data-turn-prep-root style="height: 100%"></div>',
         // Prevent Tidy from nuking our tab markup on every actor update so the Svelte
         // component stays mounted and keeps focus/scroll state intact.
