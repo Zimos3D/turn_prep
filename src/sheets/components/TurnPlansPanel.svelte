@@ -28,6 +28,8 @@
   import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
   import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
   import { TurnPrepStorage } from '../../features/data/TurnPrepStorage';
+  import { editSessionStore, type EditSession } from '../../features/edit-mode/EditSessionStore';
+  import { snapshotToPlan } from '../../utils/data';
   import * as SettingsModule from '../../settings/settings';
 
   type TurnPlansPanelUiState = {
@@ -41,6 +43,10 @@
     (globalThis as any)[PANEL_UI_CACHE_KEY] ?? ((globalThis as any)[PANEL_UI_CACHE_KEY] = new Map());
 
   let { actor }: { actor: any } = $props();
+
+  // Edit Mode State
+  let isEditing = $state(false);
+  let editSession = $state<EditSession | null>(null);
 
   // State
   let plans: TurnPlan[] = $state([]);
@@ -78,16 +84,70 @@
     registerHook('updateItem', onItemChanged);
     registerHook('deleteItem', onItemChanged);
 
-    const unsubscribe = planContextMenuController.subscribe((state) => {
+    const unsubscribeContextMenu = planContextMenuController.subscribe((state) => {
       const contextPlanId = state?.context?.planId;
       activeContextPlanId = typeof contextPlanId === 'string' ? contextPlanId : null;
+    });
+
+    const unsubscribeEditSession = editSessionStore.subscribe((session) => {
+      if (session?.actorId === actor?.id && session?.kind === 'turn') {
+        if (!isEditing) {
+          isEditing = true;
+          editSession = session;
+          
+          const p = snapshotToPlan(session.snapshot);
+          p.id = session.originalId; 
+
+          plans = [p];
+          
+          // Force expand plan card and notes
+          // Override collapse state: False = Expanded
+          const nextCollapseState = { ...planCardCollapseState, [p.id]: false };
+          planCardCollapseState = nextCollapseState;
+          
+          // Force open notes
+          const nextNotesState = { ...notesSectionState, [p.id]: true };
+          notesSectionState = nextNotesState;
+        }
+
+        // Handle pending features
+        if (isEditing && session.pendingFeatures.length > 0) {
+          const updatedPlans = [...plans];
+          const plan = updatedPlans[0];
+          let changed = false;
+
+          session.pendingFeatures.forEach(({feature, mode}) => {
+             if (mode === 'action') {
+                 if (!hasDuplicateFeature(plan.actions, feature)) { plan.actions = [...(plan.actions??[]), feature]; changed = true; }
+             } else if (mode === 'bonus') {
+                 if (!hasDuplicateFeature(plan.bonusActions, feature)) { plan.bonusActions = [...(plan.bonusActions??[]), feature]; changed = true; }
+             } else if (mode === 'reaction') {
+                 if (!hasDuplicateFeature(plan.reactions, feature)) { plan.reactions = [...(plan.reactions??[]), feature]; changed = true; }
+             } else {
+                 if (!hasDuplicateFeature(plan.additionalFeatures, feature)) { plan.additionalFeatures = [...(plan.additionalFeatures??[]), feature]; changed = true; }
+             }
+          });
+
+          if (changed) {
+            plans = updatedPlans;
+            editSessionStore.clearPendingFeatures();
+          }
+        }
+      } else {
+        if (isEditing) {
+          isEditing = false;
+          editSession = null;
+          loadPlans(false); 
+        }
+      }
     });
 
     return () => {
       persistUiStateToCache();
       cleanupHooks();
       cancelPendingSave(true);
-      unsubscribe();
+      unsubscribeContextMenu();
+      unsubscribeEditSession();
       detachScrollListener?.();
       detachScrollListener = null;
     };
@@ -819,6 +879,43 @@
     void savePlans();
   }
 
+  async function saveFavorite() {
+    if (!isEditing || !plans[0] || !editSession) return;
+    
+    try {
+      const updatedPlan = plans[0];
+      const updatedSnapshot = createTurnSnapshot(updatedPlan);
+      // Ensure the snapshot ID matches the original favorite ID
+      updatedSnapshot.id = editSession.originalId;
+
+      const data = await TurnPrepStorage.load(actor);
+      
+      // Update favorites list
+      const favorites = data.favoritesTurn ?? data.favorites ?? [];
+      const index = favorites.findIndex(f => f.id === editSession!.originalId);
+      
+      if (index >= 0) {
+        favorites[index] = updatedSnapshot;
+      } else {
+        favorites.push(updatedSnapshot);
+      }
+      
+      // Save data (make sure we don't accidentally wipe reactions or other data)
+      data.favoritesTurn = favorites;
+      await TurnPrepStorage.save(actor, data);
+      
+      ui.notifications?.info(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.FavoriteSaved'));
+      editSessionStore.clearSession();
+    } catch (error) {
+      console.error('[TurnPlansPanel] Failed to save favorite:', error);
+      ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.TurnPlans.SaveError'));
+    }
+  }
+
+  function cancelEdit() {
+    editSessionStore.clearSession();
+  }
+
   // Delete a plan
   async function deletePlan(id: string) {
     const confirmed = await (window as any).foundry.applications.api.DialogV2.confirm({
@@ -836,7 +933,7 @@
 
   // Save all plans to actor flags
   async function savePlans() {
-    if (!actor) return;
+    if (!actor || isEditing) return;
     try {
       const turnPrepData = api.getTurnPrepData(actor) ?? createEmptyTurnPrepData();
       turnPrepData.turnPlans = plans.map((plan) => sanitizePlan(plan));
@@ -1110,6 +1207,7 @@
     bind:this={panelRootElement}
   >
     <div class="turn-prep-panel-header">
+      {#if !isEditing}
       <button
         type="button"
         class="turn-prep-panel-toggle"
@@ -1118,7 +1216,20 @@
       >
         <i class="fas fa-chevron-{collapsed ? 'right' : 'down'}"></i>
       </button>
-      <h3>{FoundryAdapter.localize('TURN_PREP.TurnPlans.Title')}</h3>
+      {/if}
+      <h3>{isEditing ? (FoundryAdapter.localize('TURN_PREP.TurnPlans.EditTitle') || 'Editing Favorite') : FoundryAdapter.localize('TURN_PREP.TurnPlans.Title')}</h3>
+      {#if isEditing}
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="turn-prep-panel-action-btn" onclick={saveFavorite}>
+            <i class="fas fa-save"></i>
+            {FoundryAdapter.localize('TURN_PREP.Common.Save') || 'Save'}
+          </button>
+          <button type="button" class="turn-prep-panel-action-btn" onclick={cancelEdit} style="background: rgba(200, 50, 50, 0.2);">
+            <i class="fas fa-times"></i>
+            {FoundryAdapter.localize('TURN_PREP.Common.Cancel') || 'Cancel'}
+          </button>
+        </div>
+      {:else}
       <button
         type="button"
         class="turn-prep-panel-action-btn"
@@ -1127,6 +1238,7 @@
         <i class="fas fa-plus"></i>
         {FoundryAdapter.localize('TURN_PREP.TurnPlans.NewPlan')}
       </button>
+      {/if}
     </div>
 
     {#if !collapsed}
@@ -1143,6 +1255,7 @@
               oncontextmenu={(event) => handlePlanContextMenu(plan, event)}
             >
               <div class="plan-header">
+                {#if !isEditing}
                 <button
                   type="button"
                   class="plan-collapse-button"
@@ -1151,6 +1264,7 @@
                 >
                   <i class={`fas fa-chevron-${isPlanCollapsed(plan.id) ? 'right' : 'down'}`}></i>
                 </button>
+                {/if}
 
                 <input
                   type="text"
@@ -1160,6 +1274,7 @@
                   onchange={scheduleAutoSave}
                 />
 
+                {#if !isEditing}
                 <button
                   type="button"
                   class="plan-menu-button"
@@ -1168,6 +1283,7 @@
                 >
                   <i class="fas fa-ellipsis-vertical"></i>
                 </button>
+                {/if}
               </div>
 
               {#if !isPlanCollapsed(plan.id)}

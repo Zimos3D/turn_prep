@@ -449,6 +449,56 @@ export function snapshotFeature(feature: SelectedFeature): SnapshotFeature {
 }
 
 /**
+ * Convert a TurnSnapshot back to a TurnPlan for editing/instantiation
+ */
+export function snapshotToPlan(snapshot: TurnSnapshot): TurnPlan {
+  const mapFeature = (f: SnapshotFeature): SelectedFeature => ({
+    itemId: f.itemId,
+    itemName: f.itemName,
+    itemType: f.itemType,
+    actionType: f.actionType,
+  });
+
+  return {
+    id: snapshot.id || generateId(),
+    name: snapshot.planName || '',
+    trigger: snapshot.trigger || '',
+    actions: (snapshot.actions ?? []).map(mapFeature),
+    bonusActions: (snapshot.bonusActions ?? []).map(mapFeature),
+    reactions: (snapshot.reactions ?? []).map(mapFeature),
+    movement: snapshot.movement ?? '',
+    roleplay: snapshot.roleplay ?? '',
+    additionalFeatures: (snapshot.additionalFeatures ?? []).map(mapFeature),
+    categories: snapshot.categories ?? [],
+  };
+}
+
+/**
+ * Convert a ReactionFavoriteSnapshot (or TurnSnapshot) back to a Reaction plan
+ */
+export function snapshotToReaction(snapshot: ReactionFavoriteSnapshot | TurnSnapshot): Reaction {
+  const mapFeature = (f: SnapshotFeature): SelectedFeature => ({
+    itemId: f.itemId,
+    itemName: f.itemName,
+    itemType: f.itemType,
+    actionType: f.actionType,
+  });
+
+  // Handle both snapshot types if needed, but primarily ReactionFavoriteSnapshot
+  const reactionFeatures = (snapshot as any).reactionFeatures ?? (snapshot as any).reactions ?? [];
+  
+  return {
+    id: snapshot.id || generateId(),
+    name: (snapshot as any).planName || (snapshot as any).trigger || '', 
+    trigger: (snapshot as any).trigger || '',
+    reactionFeatures: reactionFeatures.map(mapFeature),
+    additionalFeatures: (snapshot.additionalFeatures ?? []).map(mapFeature),
+    notes: (snapshot as any).notes || (snapshot as any).roleplay || '',
+    isFavorite: true,
+  };
+}
+
+/**
  * Create an empty TurnPrepData structure
  * @returns A new empty TurnPrepData object
  */

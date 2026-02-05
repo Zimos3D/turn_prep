@@ -12,11 +12,10 @@
   } from '../../types';
   import { FoundryAdapter } from '../../foundry/FoundryAdapter';
   import { TurnPrepStorage } from '../../features/data/TurnPrepStorage';
-  import { openTurnFavoriteEditor, openReactionFavoriteEditor } from '../../features/dialogs/edit-favorite-dialogs';
+  import { editSessionStore, type EditSession } from '../../features/edit-mode/EditSessionStore';
+  import { TAB_ID_MAIN, FLAG_SCOPE, FLAG_KEY_DATA } from '../../constants';
   import { generateId, limitHistory } from '../../utils/data';
   import * as SettingsModule from '../../settings/settings';
-  import { warn, error as logError } from '../../utils/logging';
-  import { FLAG_SCOPE, FLAG_KEY_DATA } from '../../constants';
 
   interface Props {
     actor: Actor5e;
@@ -331,20 +330,24 @@
   }
 
   async function handleEdit(card: SidebarCard) {
-    if (card.section === 'favorites-reaction') {
-      await openReactionFavoriteEditor({
-        actor,
-        snapshot: card.source as ReactionFavoriteSnapshot,
-        onSaved: refreshData,
-      });
-      return;
-    }
+    if (!actor) return;
+    
+    // Create edit session
+    const session: EditSession = {
+      actorId: actor.id,
+      kind: card.section === 'favorites-reaction' ? 'reaction' : 'turn',
+      originalId: card.source.id,
+      snapshot: card.source as any
+    };
 
-    await openTurnFavoriteEditor({
-      actor,
-      snapshot: card.source as TurnSnapshot,
-      onSaved: refreshData,
-    });
+    // Start session
+    editSessionStore.startSession(session);
+
+    // Switch to main Turn Prep tab
+    const sheet = (actor as any).sheet;
+    if (sheet && typeof sheet.activateTab === 'function') {
+      sheet.activateTab(TAB_ID_MAIN);
+    }
   }
 
   async function handleFavoriteFromRecent(card: SidebarCard) {

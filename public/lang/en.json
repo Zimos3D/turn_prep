@@ -59,6 +59,7 @@
     },
     "TurnPlans": {
       "Title": "Current Turn Plans",
+      "EditTitle": "Edit Turn Plan",
       "NewPlan": "New Plan",
       "PlanLabel": "Plan",
       "PlanName": "Plan Name",
@@ -122,6 +123,7 @@
     },
     "Reactions": {
       "Title": "Reaction Plans",
+      "EditTitle": "Edit Reaction Plan",
       "NewReaction": "New Reaction",
       "ReactionName": "Reaction Name",
       "ReactionLabel": "Reaction",

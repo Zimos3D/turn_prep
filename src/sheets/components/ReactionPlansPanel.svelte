@@ -29,9 +29,15 @@
   import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
   import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
   import { TurnPrepStorage } from '../../features/data/TurnPrepStorage';
+  import { editSessionStore, type EditSession } from '../../features/edit-mode/EditSessionStore';
+  import { snapshotToReaction } from '../../utils/data';
   import * as SettingsModule from '../../settings/settings';
 
   let { actor }: { actor: any } = $props();
+
+  // Edit Mode State
+  let isEditing = $state(false);
+  let editSession = $state<EditSession | null>(null);
 
   let reactions: Reaction[] = $state([]);
   let loading = $state(true);
@@ -59,15 +65,68 @@
     registerHook('updateItem', onItemChanged);
     registerHook('deleteItem', onItemChanged);
 
-    const unsubscribe = reactionContextMenuController.subscribe((state) => {
+    const unsubscribeContextMenu = reactionContextMenuController.subscribe((state) => {
       const contextReactionId = state?.context?.reactionId;
       activeContextReactionId = typeof contextReactionId === 'string' ? contextReactionId : null;
+    });
+
+    const unsubscribeEditSession = editSessionStore.subscribe((session) => {
+      if (session?.actorId === actor?.id && session?.kind === 'reaction') {
+        if (!isEditing) {
+          isEditing = true;
+          editSession = session;
+          
+          const r = snapshotToReaction(session.snapshot);
+          r.id = session.originalId; 
+
+          reactions = [r];
+          
+          // Force expand
+          reactionCollapseState = { ...reactionCollapseState, [r.id]: false };
+          
+          // Force open notes
+          notesCollapsed = { ...notesCollapsed, [r.id]: false }; // In ReactionPlansPanel, notesCollapsed=true means collapsed (hidden), so false is open
+        }
+
+        // Handle pending features
+        if (isEditing && session.pendingFeatures.length > 0) {
+          const updatedReactions = [...reactions];
+          const reaction = updatedReactions[0];
+          let changed = false;
+
+          session.pendingFeatures.forEach(({feature, mode}) => {
+             if (mode === 'reaction') {
+                 if (!hasDuplicateFeature(reaction.reactionFeatures, feature)) { 
+                     reaction.reactionFeatures = [...(reaction.reactionFeatures??[]), feature]; 
+                     changed = true; 
+                 }
+             } else {
+                 if (!hasDuplicateFeature(reaction.additionalFeatures, feature)) { 
+                     reaction.additionalFeatures = [...(reaction.additionalFeatures??[]), feature]; 
+                     changed = true; 
+                 }
+             }
+          });
+
+          if (changed) {
+            reactions = updatedReactions;
+            editSessionStore.clearPendingFeatures();
+          }
+        }
+      } else {
+        if (isEditing) {
+          isEditing = false;
+          editSession = null;
+          loadReactions(false); 
+        }
+      }
     });
 
     return () => {
       cleanupHooks();
       cancelPendingSave(true);
-      unsubscribe();
+      unsubscribeContextMenu();
+      unsubscribeEditSession();
     };
   });
 
@@ -190,7 +249,7 @@
       id: rawReaction?.id ?? randomId(),
       name: typeof rawReaction?.name === 'string'
         ? rawReaction.name
-        : reactionsLabel,
+        : (typeof rawReaction?.trigger === 'string' && rawReaction.trigger ? rawReaction.trigger : reactionsLabel),
       trigger: typeof rawReaction?.trigger === 'string' ? rawReaction.trigger : '',
       reactionFeatures,
       additionalFeatures,
@@ -506,7 +565,7 @@
   }
 
   async function saveReactions() {
-    if (!actor) return;
+    if (!actor || isEditing) return;
     try {
       const turnPrepData = api.getTurnPrepData(actor) ?? createEmptyTurnPrepData();
       turnPrepData.reactions = reactions.map((reaction) => sanitizeReaction(reaction));
@@ -515,6 +574,43 @@
       console.error('[ReactionPlansPanel] Failed to save reactions:', error);
       ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.Reactions.SaveError'));
     }
+  }
+
+  async function saveFavorite() {
+    if (!isEditing || !reactions[0] || !editSession) return;
+    
+    try {
+      const updatedReaction = reactions[0];
+      const updatedSnapshot = createReactionFavoriteSnapshot(updatedReaction);
+      // Ensure the snapshot ID matches the original favorite ID
+      updatedSnapshot.id = editSession.originalId;
+
+      const data = await TurnPrepStorage.load(actor);
+      
+      // Update favorites list
+      const favorites = data.favoritesReaction ?? [];
+      const index = favorites.findIndex(f => f.id === editSession!.originalId);
+      
+      if (index >= 0) {
+        favorites[index] = updatedSnapshot;
+      } else {
+        favorites.push(updatedSnapshot);
+      }
+      
+      // Save data
+      data.favoritesReaction = favorites;
+      await TurnPrepStorage.save(actor, data);
+      
+      ui.notifications?.info(FoundryAdapter.localize('TURN_PREP.Reactions.Messages.FavoriteSaved') || 'Favorite updated.');
+      editSessionStore.clearSession();
+    } catch (error) {
+      console.error('[ReactionPlansPanel] Failed to save favorite:', error);
+      ui.notifications?.error(FoundryAdapter.localize('TURN_PREP.Reactions.SaveError'));
+    }
+  }
+
+  function cancelEdit() {
+    editSessionStore.clearSession();
   }
 
   async function saveTurnPrepState(nextReactions: Reaction[], nextTurnPlans?: TurnPlan[]) {
@@ -943,6 +1039,7 @@
 {:else}
   <div class="turn-prep-panel reaction-plans-panel">
     <div class="turn-prep-panel-header">
+      {#if !isEditing}
       <button
         type="button"
         class="turn-prep-panel-toggle"
@@ -951,7 +1048,20 @@
       >
         <i class="fas fa-chevron-{collapsed ? 'right' : 'down'}"></i>
       </button>
-      <h3>{FoundryAdapter.localize('TURN_PREP.Reactions.Title')}</h3>
+      {/if}
+      <h3>{isEditing ? (FoundryAdapter.localize('TURN_PREP.Reactions.EditTitle') || 'Editing Favorite Reaction') : FoundryAdapter.localize('TURN_PREP.Reactions.Title')}</h3>
+      {#if isEditing}
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="turn-prep-panel-action-btn" onclick={saveFavorite}>
+            <i class="fas fa-save"></i>
+            {FoundryAdapter.localize('TURN_PREP.Common.Save') || 'Save'}
+          </button>
+          <button type="button" class="turn-prep-panel-action-btn" onclick={cancelEdit} style="background: rgba(200, 50, 50, 0.2);">
+            <i class="fas fa-times"></i>
+            {FoundryAdapter.localize('TURN_PREP.Common.Cancel') || 'Cancel'}
+          </button>
+        </div>
+      {:else}
       <button
         type="button"
         class="turn-prep-panel-action-btn"
@@ -960,6 +1070,7 @@
         <i class="fas fa-plus"></i>
         {FoundryAdapter.localize('TURN_PREP.Reactions.NewReaction')}
       </button>
+      {/if}
     </div>
 
     {#if !collapsed}
@@ -970,6 +1081,7 @@
       {:else}
         <div class="turn-prep-panel-list reaction-plans-list">
           {#each reactions as reaction (reaction.id)}
+            {#if !isEditing || (editSession?.originalId === reaction.id)}
             <div
               class={`turn-prep-panel-card reaction-card ${isReactionCollapsed(reaction.id) ? 'is-collapsed' : ''} ${activeContextReactionId === reaction.id ? 'is-context-open' : ''}`}
               role="group"
@@ -977,6 +1089,7 @@
             >
               <div class="reaction-header">
                 <div class="turn-prep-inline-label-row reaction-name-row">
+                  {#if !isEditing}
                   <button
                     type="button"
                     class="reaction-collapse-button"
@@ -985,6 +1098,7 @@
                   >
                     <i class={`fas fa-chevron-${isReactionCollapsed(reaction.id) ? 'right' : 'down'}`}></i>
                   </button>
+                  {/if}
                   <label
                     for={"reaction-name-" + reaction.id}
                   >
@@ -994,11 +1108,17 @@
                     id={"reaction-name-" + reaction.id}
                     type="text"
                     class="turn-prep-input reaction-name"
-                    bind:value={reaction.name}
+                    value={reaction.name}
+                    oninput={(e) => {
+                      const val = e.currentTarget.value;
+                      reaction.name = val;
+                      reaction.trigger = val;
+                      scheduleAutoSave();
+                    }}
                     placeholder={FoundryAdapter.localize('TURN_PREP.Reactions.TriggerPlaceholder')}
-                    oninput={scheduleAutoSave}
                   />
                 </div>
+                {#if !isEditing}
                 <button
                   type="button"
                   class="reaction-menu-button"
@@ -1008,6 +1128,7 @@
                 >
                   <i class="fas fa-ellipsis-vertical"></i>
                 </button>
+                {/if}
               </div>
 
               {#if !isReactionCollapsed(reaction.id)}
@@ -1067,6 +1188,7 @@
                 </div>
               {/if}
             </div>
+            {/if}
           {/each}
         </div>
       {/if}

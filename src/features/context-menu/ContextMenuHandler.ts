@@ -20,6 +20,8 @@ import { TurnPrepStorage } from '../data/TurnPrepStorage';
 import { FeatureSelector } from '../feature-selection/FeatureSelector';
 import { createTurnPlan, createReaction } from '../../utils/data';
 import type { TurnPrepData, TurnPlan, Reaction, SelectedFeature } from '../../types';
+import { editSessionStore } from '../edit-mode/EditSessionStore';
+import { get } from 'svelte/store';
 
 /**
  * Activity selection dialog option
@@ -383,6 +385,14 @@ export class ContextMenuHandler {
         itemType: item.type ?? 'item',
         actionType: normalizedType,
       };
+
+      // Check for active edit session
+      const session = get(editSessionStore);
+      if (session && session.actorId === actor.id) {
+        editSessionStore.addFeature(feature, normalizedType as any);
+        ui.notifications?.info(`Added ${item.name} to edited plan`);
+        return;
+      }
 
       const turnPrepData = await ContextMenuHandler.ensureTurnPrepData(actor);
       const targetPlan: TurnPlan = turnPrepData.turnPlans[0];
