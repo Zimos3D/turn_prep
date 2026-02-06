@@ -108,8 +108,8 @@ Each TODO in code files corresponds to items in this list.
 - `PHASE4_IMPLEMENTATION_PLAN.md` - Updated with warnings about what doesn't work
 
 ### Phase 5: Sheet Integration (Connection Layer)
-- [ ] Tidy 5E integration (tidy-sheet-integration.ts)
-- [ ] Tab components (TidyTurnPrepTab, TidyTurnsSidebarTab)
+- [x] Tidy 5E integration (tidy-sheet-integration.ts)
+- [x] Tab components (TidyTurnPrepTab, TidyTurnsSidebarTab)
 - [ ] Default sheet integration (default-sheet-hooks.ts)
 - [ ] Default sheet components (DefaultTurnPrepTab, HistoryFavoritesPanel)
 
@@ -162,3 +162,4 @@ Initialization
 ```
 
 Start with Foundation and work downward - files in upper layers don't depend on lower layers.
+
