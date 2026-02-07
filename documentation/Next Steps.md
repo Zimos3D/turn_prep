@@ -3,13 +3,12 @@ I've got all of the basics working.
 # Tweaks and fixes
 
 ## Sidebar
-- Make Sidebar cards collapsible and collapsed by default. Opening shows features like it is now but still not the other fields like notes
+- Make Sidebar cards collapsible and collapsed by default. Opening shows features like it is now but still not the other fields like notes. When 
 
 - Drag and drop reordering of the favorite cards (but not history cards, of course)
 
 - Also add "arrange" options  to the Context menu. for the favorite cards (move up, down, top, bottom) like before
 
-- When I switch to the turn prep panel, I want it to also automatically open the sidebar and switch to the turns tab of the sidebar
 
 # Features
 
