@@ -832,7 +832,7 @@
       categories: []
     };
     
-    plans = [...plans, newPlan];
+    plans = [newPlan, ...plans];
     syncNotesSectionState(plans);
     syncPlanCardCollapseState(plans);
     void savePlans();

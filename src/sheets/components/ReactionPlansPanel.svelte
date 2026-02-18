@@ -462,7 +462,7 @@
       isFavorite: false
     };
 
-    reactions = [...reactions, newReaction];
+    reactions = [newReaction, ...reactions];
     notesCollapsed = { ...notesCollapsed, [newReaction.id]: true };
     void saveReactions();
   }
