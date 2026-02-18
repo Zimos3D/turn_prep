@@ -830,19 +830,29 @@
     const reactionActions: ContextMenuAction[] = [];
     for (const reaction of reactions) {
       if (reaction.id === currentReactionId) continue;
+      
+      const submenuActions: ContextMenuAction[] = [];
       if (allowReaction) {
-        reactionActions.push({
+        submenuActions.push({
           id: `${reaction.id}-reaction-${copy ? 'copy' : 'move'}`,
-          label: `${reaction.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} - ${FoundryAdapter.localize('TURN_PREP.Reactions.ReactionFeatures')}`,
+          label: FoundryAdapter.localize('TURN_PREP.Reactions.ReactionFeatures'),
           icon: 'fa-solid fa-bolt',
           onSelect: () => handleMoveCopyWithinReactions(currentReactionId, reaction.id, 'reactionFeatures', feature, copy)
         });
       }
-      reactionActions.push({
+      submenuActions.push({
         id: `${reaction.id}-additional-${copy ? 'copy' : 'move'}`,
-        label: `${reaction.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel')} - ${FoundryAdapter.localize('TURN_PREP.Reactions.AdditionalFeatures')}`,
+        label: FoundryAdapter.localize('TURN_PREP.Reactions.AdditionalFeatures'),
         icon: 'fa-regular fa-circle-dot',
         onSelect: () => handleMoveCopyWithinReactions(currentReactionId, reaction.id, 'additionalFeatures', feature, copy)
+      });
+
+      reactionActions.push({
+        id: `reaction-${reaction.id}-${copy ? 'copy' : 'move'}`,
+        label: reaction.name || FoundryAdapter.localize('TURN_PREP.Reactions.ReactionLabel'),
+        icon: 'fa-solid fa-bolt',
+        submenu: [{ id: `reaction-${reaction.id}-sub`, actions: submenuActions }],
+        onSelect: () => {}
       });
     }
 
@@ -859,27 +869,39 @@
       const plans = turnPrepData?.turnPlans ?? [];
       const turnActions: ContextMenuAction[] = [];
       for (const plan of plans) {
+        
+        const submenuActions: ContextMenuAction[] = [];
         if (allowAction) {
-          turnActions.push({
+          submenuActions.push({
             id: `${plan.id}-action-${copy ? 'copy' : 'move'}`,
-            label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.Actions')}`,
+            label: FoundryAdapter.localize('TURN_PREP.TurnPlans.Actions'),
             icon: 'fa-solid fa-person-running',
             onSelect: () => handleMoveCopyToTurnPlan(currentReactionId, plan.id, 'actions', feature, copy)
           });
         }
         if (allowBonus) {
-          turnActions.push({
+          submenuActions.push({
             id: `${plan.id}-bonus-${copy ? 'copy' : 'move'}`,
-            label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.BonusActions')}`,
+            label: FoundryAdapter.localize('TURN_PREP.TurnPlans.BonusActions'),
             icon: 'fa-solid fa-plus',
             onSelect: () => handleMoveCopyToTurnPlan(currentReactionId, plan.id, 'bonusActions', feature, copy)
           });
         }
-        turnActions.push({
+        // Features with reaction cost moving to a Turn Plan should also go to Additional Features
+        // as per requirements (Turn Plans assume Actions/Bonus logic, Reactions live in Reaction Plans).
+        submenuActions.push({
           id: `${plan.id}-additional-${copy ? 'copy' : 'move'}`,
-          label: `${plan.name} - ${FoundryAdapter.localize('TURN_PREP.TurnPlans.AdditionalFeatures')}`,
+          label: FoundryAdapter.localize('TURN_PREP.TurnPlans.AdditionalFeatures'),
           icon: 'fa-regular fa-circle-dot',
           onSelect: () => handleMoveCopyToTurnPlan(currentReactionId, plan.id, 'additionalFeatures', feature, copy)
+        });
+        
+        turnActions.push({
+          id: `plan-${plan.id}-${copy ? 'copy' : 'move'}`,
+          label: plan.name,
+          icon: 'fa-solid fa-scroll',
+          submenu: [{ id: `plan-${plan.id}-sub`, actions: submenuActions }],
+          onSelect: () => {}
         });
       }
 

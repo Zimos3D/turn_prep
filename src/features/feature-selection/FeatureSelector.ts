@@ -382,12 +382,29 @@ export class FeatureSelector {
     }
 
     try {
-      return Array.from(item.system.activities);
-    } catch (err) {
-      warn(`FeatureSelector.getActivitiesForItem(): Error getting activities`, err as Error);
-      return [];
+        const activities = item.system.activities;
+
+        // Handle Collection/Map (Foundry Document)
+        if (typeof activities.values === 'function') {
+          return Array.from(activities.values());
+        }
+
+        // Handle Array
+        if (Array.isArray(activities)) {
+          return activities;
+        }
+
+        // Handle Dictionary Object (Raw JSON)
+        if (typeof activities === 'object' && activities !== null) {
+          return Object.values(activities);
+        }
+
+        return [];
+      } catch (err) {
+        warn(`FeatureSelector.getActivitiesForItem(): Error getting activities`, err as Error);
+        return [];
+      }
     }
-  }
 
   /**
    * Normalize activation type to standard values
