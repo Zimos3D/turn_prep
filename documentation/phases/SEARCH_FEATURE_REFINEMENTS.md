@@ -13,9 +13,10 @@ Refined the search feature based on user feedback to improve layout, usability, 
     - Adjusted the flex distribution in `TurnPlansPanel` and `ReactionPlansPanel` to give 70% width to the plan/reaction name and 30% to the search bar. This provides more room for names and a more compact search bar.
 
 3.  **Search Results UI**:
-    - Ensured search result items are full-width clickable buttons.
-    - Removed default Foundry styling (borders/backgrounds) from the inner enriched HTML links (`content-link`) using `!important` to prevent "outline" artifacts.
-    - Added hover highlight to the entire row/button.
+    - Ensured search result items are full-width clickable buttons by forcing the inner `.content-link` to `display: inline-block` and `width: 100%`.
+    - Removed default Foundry styling (borders/backgrounds/shadows) from the inner enriched HTML links (`content-link`) using `!important` to prevent "outline" artifacts around the text.
+    - Added specific override for `.content-link:hover` to ensure no styles bleed through.
+    - Added hover highlight to the entire row/button (`.turn-prep-search__result-btn`).
 
 ## Files Updated
 - `public/lang/en.json`: Key added.

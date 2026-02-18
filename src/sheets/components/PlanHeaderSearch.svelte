@@ -199,6 +199,7 @@
         list-style: none;
         margin: 0;
         padding: 0;
+        width: 100%;
     }
         
     .turn-prep-search__item {
@@ -211,7 +212,7 @@
 
     .turn-prep-search__result-btn {
         display: block;
-        width: 100%;
+        width: 100% !important; /* Force full width against Tidy5e defaults */
         text-align: left;
         padding: 0.25rem 0.5rem;
         background: transparent;
@@ -219,11 +220,12 @@
         color: var(--t5e-text-color, inherit);
         cursor: pointer;
         font-size: 0.9rem;
-        line-height: 1.5rem; 
+        line-height: normal; /* Remove fixed line-height to allow content to dictate height, or keep flexible */
         min-height: 2rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        box-sizing: border-box;
         
         &:hover, &:focus {
             background: var(--turn-prep-highlight, rgba(255,255,255,0.15));
@@ -231,7 +233,7 @@
         }
         
         /* Ensure enriched content doesn't break layout or intercept clicks */
-        :global(a.content-link) {
+        :global(.content-link) {
             pointer-events: none !important; 
             text-decoration: none !important;
             color: inherit !important;
@@ -239,8 +241,21 @@
             border: none !important;
             padding: 0 !important;
             margin: 0 !important;
+            display: inline-block !important; /* Changed to inline-block */
+            width: 100%;                  /* Force it to take full width of button */
+            height: 100%;                 /* Force it to take full height */
+            text-align: left;
         }
-            :global(.content-link > i) {
+        
+        /* Specific override for hover state on the link itself if Foundry forces it */
+        :global(.content-link:hover) {
+             background: transparent !important;
+             box-shadow: none !important;
+             border: none !important;
+             text-shadow: none !important;
+        }
+
+        :global(.content-link > i) {
             margin-right: 0.25rem;
         }
     }
