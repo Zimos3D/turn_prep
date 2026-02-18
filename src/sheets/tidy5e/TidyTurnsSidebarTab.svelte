@@ -13,9 +13,13 @@
   import { FoundryAdapter } from '../../foundry/FoundryAdapter';
   import { TurnPrepStorage } from '../../features/data/TurnPrepStorage';
   import { editSessionStore, type EditSession } from '../../features/edit-mode/EditSessionStore';
-  import { TAB_ID_MAIN, FLAG_SCOPE, FLAG_KEY_DATA } from '../../constants';
-  import { generateId, limitHistory } from '../../utils/data';
+  import { TAB_ID_MAIN, FLAG_SCOPE, FLAG_KEY_DATA, AUTO_SAVE_DEBOUNCE_MS } from '../../constants';
+  import { generateId, limitHistory, moveArrayItem } from '../../utils/data';
   import * as SettingsModule from '../../settings/settings';
+  import ContextMenuHost from '../components/context-menu/ContextMenuHost.svelte';
+  import { ContextMenuController } from '../../features/context-menu/ContextMenuController';
+  import type { ContextMenuAction, ContextMenuSection } from '../../features/context-menu/context-menu.types';
+  import { buildReorderActions, buildArrangeSubmenuSection, buildArrangeParentAction } from '../../features/context-menu/menu-builders';
 
   interface Props {
     actor: Actor5e;
@@ -41,7 +45,10 @@
   let favoriteReactions: SidebarCard[] = $state([]);
   let recentTurns: SidebarCard[] = $state([]);
   let loading = $state(false);
+  let expandedCards = $state<Set<string>>(new Set());
+  const contextMenuController = new ContextMenuController('turn-prep-sidebar');
   let openMenuId = $state<string | null>(null);
+  let saveTimeout: number | null = null;
   const hookCleanups: Array<() => void> = [];
 
   const collapseKeys = ['favoritesTurn', 'favoritesReaction', 'recent'] as const;
@@ -69,15 +76,13 @@
     registerHook('updateActor', onActorUpdated);
     void refreshData();
 
+    const unsubscribeContextMenu = contextMenuController.subscribe((state) => {
+      openMenuId = state?.isOpen ? state.context?.cardId as string ?? null : null;
+    });
+
     return () => {
       cleanupHooks();
-    };
-  });
-
-  $effect(() => {
-    window.addEventListener('click', handleGlobalClick, true);
-    return () => {
-      window.removeEventListener('click', handleGlobalClick, true);
+      unsubscribeContextMenu();
     };
   });
 
@@ -262,12 +267,32 @@
     }
   }
 
-  async function updateData(mutator: (data: TurnPrepData) => void) {
+  async function updateData(mutator: (data: TurnPrepData) => void, save: boolean = true) {
     if (!actor) return;
     const data = await TurnPrepStorage.load(actor);
     mutator(data);
-    await TurnPrepStorage.save(actor, data);
-    await refreshData();
+    if (save) {
+      await TurnPrepStorage.save(actor, data);
+    }
+  }
+
+  function scheduleAutoSave() {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    saveTimeout = window.setTimeout(async () => {
+      saveTimeout = null;
+      if (!actor) return;
+      const data = await TurnPrepStorage.load(actor);
+      
+      // We must only update the favorite arrays during minimal autosave
+      // to avoid race conditions with other updates
+      data.favoritesTurn = favoriteTurns.map(c => c.source as TurnSnapshot);
+      data.favoritesReaction = favoriteReactions.map(c => c.source as ReactionFavoriteSnapshot);
+      
+      await TurnPrepStorage.save(actor, data);
+      await refreshData();
+    }, AUTO_SAVE_DEBOUNCE_MS);
   }
 
   async function handleLoad(card: SidebarCard) {
@@ -350,34 +375,135 @@
     }
   }
 
-  async function handleFavoriteFromRecent(card: SidebarCard) {
-    if (card.variant !== 'recent') return;
-    const snapshot = card.source as TurnSnapshot;
-    await updateData((data) => {
-      const existing = (data.favoritesTurn ?? data.favorites ?? []).some((s: TurnSnapshot) => s.id === snapshot.id);
-      if (!existing) {
-        data.favoritesTurn = [...(data.favoritesTurn ?? data.favorites ?? []), snapshot];
+  async function handleReorder(
+    section: SidebarCard['section'],
+    currentIndex: number,
+    targetIndex: number
+  ) {
+    if (section === 'recent') return; // History is not reorderable
+    
+    // Optimistic update
+    if (section === 'favorites-turn') {
+      const source = favoriteTurns[currentIndex];
+      const newTurns = moveArrayItem([...favoriteTurns], currentIndex, targetIndex);
+      favoriteTurns = newTurns;
+    } else {
+      const source = favoriteReactions[currentIndex];
+      const newReactions = moveArrayItem([...favoriteReactions], currentIndex, targetIndex);
+      favoriteReactions = newReactions;
+    }
+
+    scheduleAutoSave();
+  }
+
+  function getContextMenuActions(card: SidebarCard): ContextMenuAction[] {
+    const sectionCards = getCardsForSection(card.section === 'favorites-turn' ? 'favoritesTurn' : (card.section === 'favorites-reaction' ? 'favoritesReaction' : 'recent'));
+    const index = sectionCards.findIndex(c => c.id === card.id);
+    const total = sectionCards.length;
+
+    // Build arrange submenu only for reorderable sections
+    let arrangeAction: ContextMenuAction | null = null;
+    if (card.section !== 'recent') {
+      const reorderActions = buildReorderActions({
+        currentIndex: index,
+        totalCount: total,
+        onMoveUp: () => handleReorder(card.section, index, Math.max(0, index - 1)),
+        onMoveDown: () => handleReorder(card.section, index, Math.min(total - 1, index + 1)),
+        onMoveTop: () => handleReorder(card.section, index, 0),
+        onMoveBottom: () => handleReorder(card.section, index, total - 1),
+        idPrefix: `sidebar-${card.section}`
+      });
+      
+      const arrangeSection = buildArrangeSubmenuSection(reorderActions);
+      arrangeAction = buildArrangeParentAction(arrangeSection);
+    }
+
+    const actions: ContextMenuAction[] = [
+      {
+        id: 'load',
+        label: label('TURN_PREP.Sidebar.Load'),
+        icon: 'fa-solid fa-share',
+        onSelect: () => handleLoad(card)
       }
+    ];
+
+    if (card.section !== 'recent') {
+      actions.push(
+        {
+            id: 'duplicate',
+            label: label('TURN_PREP.Sidebar.Duplicate'),
+            icon: 'fa-solid fa-copy',
+            onSelect: () => handleDuplicate(card)
+        },
+        {
+            id: 'edit',
+            label: label('TURN_PREP.Sidebar.Edit'),
+            icon: 'fa-solid fa-pen',
+            onSelect: () => handleEdit(card)
+        }
+      );
+    }
+
+    if (arrangeAction) {
+      actions.push(arrangeAction);
+    }
+
+    if (card.section === 'recent') {
+      actions.push({
+        id: 'favorite',
+        label: label('TURN_PREP.Sidebar.Favorite'),
+        icon: 'fa-solid fa-star',
+        onSelect: () => handleFavoriteFromRecent(card)
+      });
+    }
+
+    actions.push({
+      id: 'delete',
+      label: label('TURN_PREP.Sidebar.Delete'),
+      icon: 'fa-solid fa-trash',
+      variant: 'destructive',
+      onSelect: () => handleDelete(card.section, card.id)
+    });
+
+    return actions;
+  }
+
+  function openContextMenu(card: SidebarCard, event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // If triggered by button click, align to button. Otherwise cursor position.
+    const trigger = event.currentTarget as HTMLElement;
+    const isButton = trigger.tagName === 'BUTTON';
+    const position = isButton
+      ? { x: trigger.getBoundingClientRect().right, y: trigger.getBoundingClientRect().bottom + 4 }
+      : { x: event.clientX, y: event.clientY };
+
+    contextMenuController.open({
+        sections: [{
+            id: 'sidebar-card-actions',
+            actions: getContextMenuActions(card)
+        }],
+        position,
+        anchorElement: trigger,
+        context: {
+            cardId: card.id
+        }
     });
   }
 
-  function closeMenu() {
-    openMenuId = null;
-  }
-
-  function handleGlobalClick(event: MouseEvent) {
-    const target = event.target as HTMLElement | null;
-    if (!target) return;
-    // Close if click happens outside any open menu or its toggle buttons
-    const menu = target.closest('.menu');
-    const toggle = target.closest('.card-menu');
-    if (!menu && !toggle) {
-      closeMenu();
+  function toggleCardExpanded(cardId: string) {
+    const next = new Set(expandedCards);
+    if (next.has(cardId)) {
+        next.delete(cardId);
+    } else {
+        next.add(cardId);
     }
+    expandedCards = next;
   }
 
-  function menuId(card: SidebarCard): string {
-    return `${card.section}-${card.id}`;
+  function isCardExpanded(card: SidebarCard): boolean {
+    return expandedCards.has(card.id);
   }
 
   function getCardsForSection(section: CollapseKey): SidebarCard[] {
@@ -445,74 +571,65 @@
               <div
                 class={sectionClass(card.section)}
                 role="group"
-                oncontextmenu={(event) => {
-                  event.preventDefault();
-                  openMenuId = menuId(card);
-                }}
+                oncontextmenu={(event) => openContextMenu(card, event)}
               >
                 <div class="card-header">
-                  <div class="card-title">{card.title}</div>
+                  <div class="card-header-left">
+                    <button 
+                      class="card-collapse-toggle" 
+                      onclick={() => toggleCardExpanded(card.id)}
+                      title={isCardExpanded(card) ? label('TURN_PREP.Common.Collapse') : label('TURN_PREP.Common.Expand')}
+                    >
+                      <i class={`fas fa-chevron-${isCardExpanded(card) ? 'down' : 'right'}`}></i>
+                    </button>
+                    <div 
+                        class="card-title" 
+                        onclick={() => toggleCardExpanded(card.id)}
+                        role="button"
+                        tabindex="0"
+                        onkeydown={(e) => e.key === 'Enter' && toggleCardExpanded(card.id)}
+                    >
+                        {card.title}
+                    </div>
+                  </div>
                   <div class="card-menu">
                     <button
                       class="icon-button"
                       aria-label={label('TURN_PREP.ContextMenu.OpenLabel')}
-                      onclick={() => (openMenuId = menuId(card))}
+                      onclick={(event) => openContextMenu(card, event)}
                     >
                       <i class="fa-solid fa-ellipsis-vertical"></i>
                     </button>
-                    {#if openMenuId === menuId(card)}
-                      <div class="menu" role="menu">
-                        <button class="menu-item" onclick={() => { closeMenu(); void handleLoad(card); }}>
-                          <i class="fa-solid fa-share"></i> {label('TURN_PREP.Sidebar.Load')}
-                        </button>
-                        {#if card.section !== 'recent'}
-                          <button class="menu-item" onclick={() => { closeMenu(); void handleDuplicate(card); }}>
-                            <i class="fa-solid fa-copy"></i> {label('TURN_PREP.Sidebar.Duplicate')}
-                          </button>
-                        {/if}
-                        {#if card.section !== 'recent'}
-                          <button class="menu-item" onclick={() => { closeMenu(); void handleEdit(card); }}>
-                            <i class="fa-solid fa-pen"></i> {label('TURN_PREP.Sidebar.Edit')}
-                          </button>
-                        {/if}
-
-                        {#if card.section === 'recent'}
-                          <button class="menu-item" onclick={() => { closeMenu(); void handleFavoriteFromRecent(card); }}>
-                            <i class="fa-solid fa-star"></i> {label('TURN_PREP.Sidebar.Favorite')}
-                          </button>
-                        {/if}
-                        <button class="menu-item danger" onclick={() => { closeMenu(); void handleDelete(card.section, card.id); }}>
-                          <i class="fa-solid fa-trash"></i> {label('TURN_PREP.Sidebar.Delete')}
-                        </button>
-                      </div>
-                    {/if}
                   </div>
                 </div>
-                <div class="card-rows">
-                  {#if card.variant === 'reaction'}
-                    <div class="row">
-                      <span class="row-label" title={label('TURN_PREP.Reactions.ReactionFeatures')}>{reactionAbbrev}</span>
-                      <span class="row-content">{@html card.reactionsHtml ?? card.actionsHtml}</span>
+                
+                {#if isCardExpanded(card)}
+                    <div class="card-rows">
+                    {#if card.variant === 'reaction'}
+                        <div class="row">
+                        <span class="row-label" title={label('TURN_PREP.Reactions.ReactionFeatures')}>{reactionAbbrev}</span>
+                        <span class="row-content">{@html card.reactionsHtml ?? card.actionsHtml}</span>
+                        </div>
+                        <div class="row">
+                        <span class="row-label" title={label(additionalLabel)}>{additionalAbbrev}</span>
+                        <span class="row-content">{@html card.additionalHtml}</span>
+                        </div>
+                    {:else}
+                        <div class="row">
+                        <span class="row-label" title={label(actionLabel)}>{actionAbbrev}</span>
+                        <span class="row-content">{@html card.actionsHtml}</span>
+                        </div>
+                        <div class="row">
+                        <span class="row-label" title={label(bonusLabel)}>{bonusAbbrev}</span>
+                        <span class="row-content">{@html card.bonusHtml}</span>
+                        </div>
+                        <div class="row">
+                        <span class="row-label" title={label(additionalLabel)}>{additionalAbbrev}</span>
+                        <span class="row-content">{@html card.additionalHtml}</span>
+                        </div>
+                    {/if}
                     </div>
-                    <div class="row">
-                      <span class="row-label" title={label(additionalLabel)}>{additionalAbbrev}</span>
-                      <span class="row-content">{@html card.additionalHtml}</span>
-                    </div>
-                  {:else}
-                    <div class="row">
-                      <span class="row-label" title={label(actionLabel)}>{actionAbbrev}</span>
-                      <span class="row-content">{@html card.actionsHtml}</span>
-                    </div>
-                    <div class="row">
-                      <span class="row-label" title={label(bonusLabel)}>{bonusAbbrev}</span>
-                      <span class="row-content">{@html card.bonusHtml}</span>
-                    </div>
-                    <div class="row">
-                      <span class="row-label" title={label(additionalLabel)}>{additionalAbbrev}</span>
-                      <span class="row-content">{@html card.additionalHtml}</span>
-                    </div>
-                  {/if}
-                </div>
+                {/if}
               </div>
             {/each}
           {/if}
@@ -520,9 +637,41 @@
       {/if}
     </section>
   {/each}
+  
+  <ContextMenuHost controller={contextMenuController} />
 </div>
 
 <style>
+  /* ... existing styles ... */
+  .card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card-collapse-toggle {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: var(--t5e-tertiary-color, inherit);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+  
+  .card-collapse-toggle:hover {
+    color: var(--t5e-primary-color, inherit);
+  }
+
+  .card-title {
+    cursor: pointer;
+  }
+
   .turn-prep-sidebar {
     padding: 0.5rem;
     display: flex;
@@ -652,42 +801,6 @@
 
   .icon-button:hover {
     background: var(--t5e-faint-color, rgba(255,255,255,0.08));
-  }
-
-  .menu {
-    position: absolute;
-    top: 1.6rem;
-    right: 0;
-    background: var(--t5e-context-menu-bg, var(--t5e-component-card-default, #fff));
-    border: 1px solid var(--t5e-context-menu-border, var(--t5e-faint-color, currentColor));
-    border-radius: 6px;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
-    padding: 0.2rem;
-    z-index: 200030;
-    color: var(--t5e-context-menu-text, inherit);
-    min-width: 160px;
-  }
-
-  .menu-item {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    width: 100%;
-    border: none;
-    background: transparent;
-    padding: 0.35rem 0.45rem;
-    text-align: left;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    color: inherit;
-  }
-
-  .menu-item:hover {
-    background: var(--t5e-faint-color, rgba(255,255,255,0.08));
-  }
-
-  .menu-item.danger {
-    color: var(--t5e-danger-color, #b51e1e);
   }
 
   .card-rows {
