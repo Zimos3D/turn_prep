@@ -31,6 +31,7 @@
   import { editSessionStore, type EditSession } from '../../features/edit-mode/EditSessionStore';
   import { snapshotToPlan } from '../../utils/data';
   import * as SettingsModule from '../../settings/settings';
+  import PlanHeaderSearch from './PlanHeaderSearch.svelte';
 
   type TurnPlansPanelUiState = {
     notesState: Record<string, boolean>;
@@ -1215,6 +1216,13 @@
 
     openPlanContextMenu(plan, { x: event.clientX, y: event.clientY });
   }
+
+  function handleSearchSelect(planId: string, feature: SelectedFeature) {
+    const activations = getActivationsForFeature(feature);
+    const routed = resolveTurnPlanTableForActivations(activations);
+    const targetTable: TurnPlanTableKey = routed === 'reactions' ? 'additionalFeatures' : routed;
+    upsertFeatureToPlan(planId, targetTable, feature, null);
+  }
 </script>
 
 {#if loading}
@@ -1293,6 +1301,15 @@
                   placeholder={FoundryAdapter.localize('TURN_PREP.TurnPlans.PlanName')}
                   onchange={scheduleAutoSave}
                 />
+                
+                {#if !isEditing}
+                <div class="turn-prep-input-wrapper">
+                    <PlanHeaderSearch 
+                        actor={actor} 
+                        onSelect={(feature) => handleSearchSelect(plan.id, feature)} 
+                    />
+                </div>
+                {/if}
 
                 {#if !isEditing}
                 <button
@@ -1460,9 +1477,19 @@
       }
 
       .plan-name {
-        flex: 1;
+        flex: 1 1 70%;
+        min-width: 0; 
         font-size: 1.1rem;
         font-weight: bold;
+      }
+      
+      .turn-prep-input-wrapper {
+        flex: 0 0 30%;
+        min-width: 0;
+        margin-left: 0.5rem;
+        /* Ensure z-index context for search results */
+        position: relative;
+        z-index: 10;
       }
     }
 

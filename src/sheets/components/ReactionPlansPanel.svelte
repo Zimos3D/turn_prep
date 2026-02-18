@@ -32,6 +32,7 @@
   import { editSessionStore, type EditSession } from '../../features/edit-mode/EditSessionStore';
   import { snapshotToReaction } from '../../utils/data';
   import * as SettingsModule from '../../settings/settings';
+  import PlanHeaderSearch from './PlanHeaderSearch.svelte';
 
   let { actor }: { actor: any } = $props();
 
@@ -1052,6 +1053,29 @@
     openReactionContextMenu(reaction, { x: event.clientX, y: event.clientY });
   }
 
+  function handleSearchSelect(reactionId: string, feature: SelectedFeature) {
+    const activations = getActivationsForFeature(feature);
+    const targetTable = resolveReactionPlanTableForActivations(activations);
+    
+    const index = reactions.findIndex((r) => r.id === reactionId);
+    if (index === -1) return;
+    
+    const reaction = reactions[index];
+    const currentList = getReactionTable(reaction, targetTable);
+    
+    if (hasDuplicateFeature(currentList, feature)) {
+         ui.notifications?.warn(FoundryAdapter.localize('TURN_PREP.TurnPlans.Messages.DuplicateFeature') || 'Duplicate Feature');
+         return;
+    }
+    
+    const nextList = [...currentList, feature];
+    const nextReactions = [...reactions];
+    nextReactions[index] = setReactionTable(reaction, targetTable, nextList);
+    
+    reactions = nextReactions;
+    scheduleAutoSave();
+  }
+
 </script>
 
 {#if loading}
@@ -1140,6 +1164,16 @@
                     placeholder={FoundryAdapter.localize('TURN_PREP.Reactions.TriggerPlaceholder')}
                   />
                 </div>
+                
+                {#if !isEditing}
+                <div class="turn-prep-input-wrapper">
+                    <PlanHeaderSearch 
+                        actor={actor} 
+                        onSelect={(feature) => handleSearchSelect(reaction.id, feature)} 
+                    />
+                </div>
+                {/if}
+
                 {#if !isEditing}
                 <button
                   type="button"
@@ -1229,14 +1263,23 @@
     .reaction-header {
       display: flex;
       align-items: center;
-      gap: 0rem;
-      margin-bottom: 0rem;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
 
       .reaction-name-row {
-        flex: 1;
+        flex: 1 1 70%;
         display: flex;
         align-items: center;
         gap: 0.25rem;
+        min-width: 0;
+      }
+      
+      .turn-prep-input-wrapper {
+        flex: 0 0 30%;
+        min-width: 0;
+        /* Ensure z-index context for search results */
+        position: relative;
+        z-index: 10;
       }
 
       .reaction-name {

@@ -10,7 +10,8 @@
       "CopySuffix": "(Copy)",
       "Save": "Save",
       "Cancel": "Cancel",
-      "Discard": "Discard"
+      "Discard": "Discard",
+      "SearchPlaceholder": "Add Features"
     },
     "Dialog": {
       "UnsavedChangesTitle": "Unsaved Changes",

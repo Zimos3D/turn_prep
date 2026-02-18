@@ -44,3 +44,15 @@ I would love to be able to use this for my NPCs. It'll take some modification, b
 
 We'll see if I decide to bother with this
 
+
+
+
+
+
+Search Bars
+
+I'd like to add a search field to the header row of my turn and reaction plan cards. I'd like to have it after the name field and before the verical ellipsis context menu button. The name field should take up ~60% of the available width and the search field should take ~40. 
+
+When I begin typing in the search field, I'd like to see a scrollable list of features/items/spells attached to the actor whose names contain the text in the serach field. Clicking on one should add it to the plan. We already have routing rules in place for when something gets added to turn prep and should use that same functionality for adding the feature added from the search menu. We can use Foundry's EnrichHTML functionality as we do in the favorites cards in the sidebar to list the matching features so that on hover we can see the full info about the feature. The results should show one result per line. The scrollable element that shows results should be tall enough to show 5 lines at a time. 
+
+Do you understand the assignment. Is there anything I can clarify for you before you begin?
